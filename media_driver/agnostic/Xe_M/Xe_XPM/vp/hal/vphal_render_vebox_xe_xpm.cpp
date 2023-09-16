@@ -254,6 +254,12 @@ bool VPHAL_VEBOX_STATE_XE_XPM::IsNeeded(
     VPHAL_RENDER_CHK_NULL_NO_STATUS(pcRenderParams);
     VPHAL_RENDER_CHK_NULL_NO_STATUS(pcRenderParams->pTarget[0]);
 
+    if (pcRenderParams->bForceToRender)
+    {
+        pRenderPassData->bCompNeeded = true;
+        goto finish;
+    }
+
     pVeboxInterface         = pVeboxState->m_pVeboxInterface;
     pVeboxInterfaceXe_Xpm = (MhwVeboxInterfaceXe_Xpm *)pVeboxInterface;
     pOsInterface            = pVeboxState->m_pOsInterface;
@@ -1007,7 +1013,7 @@ MOS_STATUS VPHAL_VEBOX_STATE_XE_XPM::VeboxRenderVeboxCmd(
 
         for (IdxofVebox = 0; IdxofVebox < dwNumofVebox; IdxofVebox++)
         {
-            if (pOsInterface->bGucSubmission)
+            if (pOsInterface->bParallelSubmission)
             {
                 // initialize the command buffer struct
                 MOS_ZeroMemory(&CmdBufferInUse, sizeof(MOS_COMMAND_BUFFER));
@@ -1240,7 +1246,7 @@ MOS_STATUS VPHAL_VEBOX_STATE_XE_XPM::VeboxRenderVeboxCmd(
                     pCmdBufferInUse->iSubmissionType |= SUBMISSION_TYPE_MULTI_PIPE_FLAGS_LAST_PIPE;
                 }
 
-                if (pOsInterface->bGucSubmission)
+                if (pOsInterface->bParallelSubmission)
                 {
                     // Return unused command buffer space to OS
                     pOsInterface->pfnReturnCommandBuffer(

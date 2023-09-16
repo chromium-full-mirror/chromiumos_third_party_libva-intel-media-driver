@@ -51,12 +51,16 @@
 class MediaUserSettingsMgr;
 
 class MosMutex;
-#if COMMON_DLL_SEPARATION_SUPPORT
+typedef uint64_t REGHANDLE;
+typedef struct _EVENT_DESCRIPTOR EVENT_DESCRIPTOR;
+typedef const EVENT_DESCRIPTOR* PCEVENT_DESCRIPTOR;
+typedef struct _EVENT_DATA_DESCRIPTOR EVENT_DATA_DESCRIPTOR;
+
 namespace CommonLib
 {
     class MosCallback;
 }
-#endif
+
 class MosUtilities
 {
 public:
@@ -67,9 +71,8 @@ public:
     MOS_FUNC_EXPORT static int32_t MosGetMemNinjaCounter();
     MOS_FUNC_EXPORT static int32_t MosGetMemNinjaCounterGfx();
 
-#if COMMON_DLL_SEPARATION_SUPPORT
     friend class CommonLib::MosCallback;
-    
+
     //!
     //! \brief    Set trace setup info
     //! \details  Set trace setup info
@@ -78,7 +81,43 @@ public:
     //!           else MOS_STATUS_SUCCESS
     //!
     static MOS_STATUS MosTraceSetupInfoInCommon(uint32_t DrvVer, uint32_t PlatFamily, uint32_t RenderFamily, uint32_t DeviceID);
-#endif
+
+    //!
+    //! \brief    Callback funtion for C Runtime (CRT) fwrite
+    //! \details  Every DLL has its own CRT
+    //!           When we share CRT objects such as file handles, we should use callback function.
+    //! \param    [in] buf
+    //!           Content Buffer
+    //! \param    [in] size
+    //!           Element size
+    //! \param    [in] count
+    //!           Element count
+    //! \param    [in] file
+    //!           Pointer to file
+    //! \return   MOS_STATUS
+    //!           Returns one of the MOS_STATUS error codes if failed,
+    //!           else MOS_STATUS_SUCCESS
+    //!
+    static MOS_STATUS MosWriteFileInCommon(void const *buf, size_t size, size_t count, FILE *file);
+
+    //!
+    //! \brief    Callback funtion for C Runtime (CRT) fflush
+    //! \details  Every DLL has its own CRT
+    //!           When we share CRT objects such as file handles, we should use callback function.
+    //! \param    [in] file
+    //!           Pointer to file
+    //! \return   MOS_STATUS
+    //!           Returns one of the MOS_STATUS error codes if failed,
+    //!           else MOS_STATUS_SUCCESS
+    //!
+    static MOS_STATUS MosFlushToFileInCommon(FILE *file);
+
+    static MOS_STATUS MosEventWriteInCommon(
+        REGHANDLE regHandle,
+        PCEVENT_DESCRIPTOR eventDescriptor,
+        uint32_t userDataCount,
+        EVENT_DATA_DESCRIPTOR* userData);
+
     //!
     //! \brief    Get current run time
     //! \details  Get current run time in us
@@ -182,7 +221,7 @@ private:
     //!           else MOS_STATUS_SUCCESS
     //!
     static MOS_STATUS MosOsUtilitiesInit(MediaUserSettingSharedPtr userSettingPtr);
-#if COMMON_DLL_SEPARATION_SUPPORT
+
     //!
     //! \brief    Init Mos os utilities in common dll
     //! \details  Init Mos os utilities in common dll
@@ -233,7 +272,7 @@ private:
     //!
     static MOS_STATUS MosInitAllocFailSimulateFlagInCommon(MediaUserSettingSharedPtr userSettingPtr);
 #endif
-#endif
+
     //!
     //! \brief    Init user feature
     //! \details  Initial MOS OS specific utilitiesNext related structures, and only execute once for multiple entries
@@ -2846,6 +2885,19 @@ private:
 MEDIA_CLASS_DEFINE_END(MosUtilities)
 };
 
+#if (_DEBUG || _RELEASE_INTERNAL)
+#define MEMORY_ALLOC_FAIL_SIMULATE_MODE_DEFAULT (0)
+#define MEMORY_ALLOC_FAIL_SIMULATE_MODE_RANDOM (1)
+#define MEMORY_ALLOC_FAIL_SIMULATE_MODE_TRAVERSE (2)
+
+#define MIN_MEMORY_ALLOC_FAIL_FREQ (1)      //max memory allcation fail rate 100%
+#define MAX_MEMORY_ALLOC_FAIL_FREQ (10000)  //min memory allcation fail rate 1/10000
+
+#define MosAllocMemoryFailSimulationEnabled                                        \
+    (m_mosAllocMemoryFailSimulateMode == MEMORY_ALLOC_FAIL_SIMULATE_MODE_RANDOM || \
+        m_mosAllocMemoryFailSimulateMode == MEMORY_ALLOC_FAIL_SIMULATE_MODE_TRAVERSE)
+#endif
+
 class MosMutex
 {
 public:
@@ -2922,6 +2974,10 @@ _Ty* MosUtilities::MosNewUtil(_Types&&... _Args)
     {
         MosAtomicIncrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_ALLOC_MESSAGE(ptr, sizeof(_Ty), functionName, filename, line);
+        MT_LOG2(MT_MOS_ALLOCATE_MEMORY, MT_NORMAL,
+                MT_MEMORY_PTR, (int64_t)(ptr),
+                MT_MEMORY_SIZE, static_cast<int64_t>(sizeof(_Ty)));
+
     }
     else
     {
@@ -2957,6 +3013,9 @@ _Ty* MosUtilities::MosNewArrayUtil(size_t numElements)
     {
         MosAtomicIncrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_ALLOC_MESSAGE(ptr, numElements*sizeof(_Ty), functionName, filename, line);
+        MT_LOG2(MT_MOS_ALLOCATE_MEMORY, MT_NORMAL,
+                MT_MEMORY_PTR, (int64_t)(ptr),
+                MT_MEMORY_SIZE, (static_cast<int64_t>(numElements))*(static_cast<int64_t>(sizeof(_Ty))));
     }
     return ptr;
 }
@@ -2977,6 +3036,8 @@ void MosUtilities::MosDeleteUtil(_Ty& ptr)
     {
         MosAtomicDecrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line);
+        MT_LOG1(MT_MOS_DESTROY_MEMORY, MT_NORMAL,
+                MT_MEMORY_PTR, (int64_t)(ptr));
         delete(ptr);
         ptr = nullptr;
     }
@@ -2998,7 +3059,8 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
     {
         MosAtomicDecrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line);
-
+        MT_LOG1(MT_MOS_DESTROY_MEMORY, MT_NORMAL,
+                MT_MEMORY_PTR, (int64_t)(ptr));
         delete[](ptr);
         ptr = nullptr;
     }
@@ -3032,6 +3094,7 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
             { \
                 MosUtilities::MosAtomicDecrement(MosUtilities::m_mosMemAllocCounter); \
                 MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line); \
+                MT_LOG1(MT_MOS_DESTROY_MEMORY, MT_NORMAL, MT_MEMORY_PTR, (int64_t)(ptr)); \
                 delete(ptr); \
                 ptr = nullptr; \
             }
@@ -3040,6 +3103,7 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
         if (ptr != nullptr) \
             { \
                 MosUtilities::MosAtomicDecrement(MosUtilities::m_mosMemAllocCounter); \
+                MT_LOG1(MT_MOS_DESTROY_MEMORY, MT_NORMAL, MT_MEMORY_PTR, (int64_t)(ptr)); \
                 MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line); \
                 delete(ptr); \
                 ptr = nullptr; \
@@ -3052,6 +3116,7 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
         { \
             MosUtilities::MosAtomicDecrement(MosUtilities::m_mosMemAllocCounter); \
             MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line); \
+            MT_LOG1(MT_MOS_DESTROY_MEMORY, MT_NORMAL, MT_MEMORY_PTR, (int64_t)(ptr)); \
             delete[](ptr); \
             ptr = nullptr; \
         }
@@ -3061,6 +3126,7 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
         { \
             MosUtilities::MosAtomicDecrement(MosUtilities::m_mosMemAllocCounter); \
             MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line); \
+            MT_LOG1(MT_MOS_DESTROY_MEMORY, MT_NORMAL, MT_MEMORY_PTR, (int64_t)(ptr)); \
             delete[](ptr); \
             ptr = nullptr; \
         }
@@ -3168,6 +3234,21 @@ inline void MOS_TraceEvent(
 
 inline void MOS_TraceEvent(
     MEDIA_EVENT_FILTER_KEYID key,
+    uint16_t                 usId,
+    uint8_t                  ucType,
+    const void              *pArg1,
+    uint32_t                 dwSize1,
+    const void              *pArg2   = nullptr,
+    uint32_t                 dwSize2 = 0)
+{
+    if (MosUtilities::TraceKeyEnabled(key))
+    {
+        MosUtilities::MosTraceEvent(usId, ucType, pArg1, dwSize1, pArg2, dwSize2);
+    }
+}
+
+inline void MOS_TraceEvent(
+    MEDIA_EVENT_FILTER_KEYID key,
     MT_EVENT_LEVEL           level,
     uint16_t                 usId,
     uint8_t                  ucType,
@@ -3189,6 +3270,19 @@ inline void MOS_TraceDataDump(
     uint32_t    dwSize)
 {
     MosUtilities::MosTraceDataDump(pcName, flags, pBuf, dwSize);
+}
+
+inline void MOS_TraceDataDump(
+    MEDIA_EVENT_FILTER_KEYID key,
+    const char              *pcName,
+    uint32_t                 flags,
+    const void              *pBuf,
+    uint32_t                 dwSize)
+{
+    if (MosUtilities::TraceKeyEnabled(TR_KEY_DATA_DUMP))
+    {
+        MosUtilities::MosTraceDataDump(pcName, flags, pBuf, dwSize);
+    }
 }
 
 inline void MOS_TraceDataDump(

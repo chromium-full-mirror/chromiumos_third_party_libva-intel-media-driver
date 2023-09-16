@@ -27,6 +27,7 @@
 #include "renderhal.h"
 #include "mhw_vebox_itf.h"
 #include "mos_os_cp_interface_specific.h"
+#include "media_copy_common.h"
 
 #define SURFACE_DW_UY_OFFSET(pSurface) \
     ((pSurface) != nullptr ? ((pSurface)->UPlaneOffset.iSurfaceOffset - (pSurface)->dwOffset) / (pSurface)->dwPitch + (pSurface)->UPlaneOffset.iYOffset : 0)
@@ -75,27 +76,7 @@ VeboxCopyStateNext::~VeboxCopyStateNext()
 
 MOS_STATUS VeboxCopyStateNext::Initialize()
 {
-    MHW_VEBOX_GPUNODE_LIMIT     GpuNodeLimit;
-    MOS_GPU_NODE                VeboxGpuNode;
-    MOS_GPU_CONTEXT             VeboxGpuContext;
-
     VEBOX_COPY_CHK_NULL_RETURN(m_veboxItf);
-    
-    GpuNodeLimit.bCpEnabled = (m_osInterface->osCpInterface->IsCpEnabled())? true : false;
-    VEBOX_COPY_CHK_STATUS_RETURN(m_veboxItf->FindVeboxGpuNodeToUse(&GpuNodeLimit));
-    VeboxGpuNode = (MOS_GPU_NODE)(GpuNodeLimit.dwGpuNodeToUse);
-    VeboxGpuContext = (VeboxGpuNode == MOS_GPU_NODE_VE) ? MOS_GPU_CONTEXT_VEBOX : MOS_GPU_CONTEXT_VEBOX2;
-    // Create VEBOX/VEBOX2 Context
-    VEBOX_COPY_CHK_STATUS_RETURN(m_veboxItf->CreateGpuContext(
-            m_osInterface,
-            VeboxGpuContext,
-            VeboxGpuNode));
-
-    // Register Vebox GPU context with the Batch Buffer completion event
-    VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnRegisterBBCompleteNotifyEvent(
-            m_osInterface,
-            MOS_GPU_CONTEXT_VEBOX));
-
     const MHW_VEBOX_HEAP* veboxHeap = nullptr;
     m_veboxItf->GetVeboxHeapInfo(&veboxHeap);
 
@@ -145,16 +126,27 @@ MOS_STATUS VeboxCopyStateNext::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE 
         return MOS_STATUS_UNIMPLEMENTED;
     }
 
-    MOS_GPUCTX_CREATOPTIONS_ENHANCED      createOption = {};
-
-    // no gpucontext will be created if the gpu context has been created before.
-    VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnCreateGpuContext(
+    MHW_VEBOX_GPUNODE_LIMIT     GpuNodeLimit;
+    MOS_GPU_NODE                VeboxGpuNode;
+    MOS_GPU_CONTEXT             VeboxGpuContext;
+    GpuNodeLimit.bCpEnabled = (m_osInterface->osCpInterface->IsCpEnabled()) ? true : false;
+    VEBOX_COPY_CHK_STATUS_RETURN(m_veboxItf->FindVeboxGpuNodeToUse(&GpuNodeLimit));
+    VeboxGpuNode = (MOS_GPU_NODE)(GpuNodeLimit.dwGpuNodeToUse);
+    VeboxGpuContext = (VeboxGpuNode == MOS_GPU_NODE_VE) ? MOS_GPU_CONTEXT_VEBOX : MOS_GPU_CONTEXT_VEBOX2;
+    // Create VEBOX/VEBOX2 Context
+    VEBOX_COPY_CHK_STATUS_RETURN(m_veboxItf->CreateGpuContext(
         m_osInterface,
-        MOS_GPU_CONTEXT_VEBOX,
-        MOS_GPU_NODE_VE,
-        &createOption));
-    VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnSetGpuContext(m_osInterface, MOS_GPU_CONTEXT_VEBOX));
+        VeboxGpuContext,
+        VeboxGpuNode));
 
+    // Register Vebox GPU context with the Batch Buffer completion event
+    VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnRegisterBBCompleteNotifyEvent(
+        m_osInterface,
+        VeboxGpuContext));
+
+    VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnSetGpuContext(m_osInterface, VeboxGpuContext));
+
+    m_osInterface->pfnSetPerfTag(m_osInterface, VEBOX_COPY);
     // Sync on Vebox Input Resource, Ensure the input is ready to be read
     // Currently, MOS RegisterResourcere cannot sync the 3d resource.
     // Temporaly, call sync resource to do the sync explicitly.
@@ -162,7 +154,12 @@ MOS_STATUS VeboxCopyStateNext::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE 
     m_osInterface->pfnSyncOnResource(
         m_osInterface,
         src,
-        MOS_GPU_CONTEXT_VEBOX,
+        VeboxGpuContext,
+        false);
+    m_osInterface->pfnSyncOnResource(
+        m_osInterface,
+        dst,
+        VeboxGpuContext,
         false);
 
     // Reset allocation list and house keeping
@@ -188,6 +185,13 @@ MOS_STATUS VeboxCopyStateNext::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE 
     VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnGetCommandBuffer(m_osInterface, &cmdBuffer, 0));
     VEBOX_COPY_CHK_STATUS_RETURN(InitCommandBuffer(&cmdBuffer));
 
+    MediaPerfProfiler* perfProfiler = MediaPerfProfiler::Instance();
+    VEBOX_COPY_CHK_NULL_RETURN(perfProfiler);
+    VEBOX_COPY_CHK_STATUS_RETURN(perfProfiler->AddPerfCollectStartCmd((void*)this, m_osInterface, m_miItf, &cmdBuffer));
+
+    // Set Vebox MMIO
+    VEBOX_COPY_CHK_STATUS_RETURN(m_miItf->AddVeboxMMIOPrologCmd(&cmdBuffer));
+
     // Prepare Vebox_Surface_State, surface input/and output are the same but the compressed status.
     VEBOX_COPY_CHK_STATUS_RETURN(SetupVeboxSurfaceState(&mhwVeboxSurfaceStateCmdParams, &inputSurface, &outputSurface));
 
@@ -205,6 +209,7 @@ MOS_STATUS VeboxCopyStateNext::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE 
 
     auto& flushDwParams = m_miItf->MHW_GETPAR_F(MI_FLUSH_DW)();
     flushDwParams = {};
+    flushDwParams.pOsResource = (PMOS_RESOURCE)&veboxHeap->DriverResource;
     VEBOX_COPY_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_FLUSH_DW)(&cmdBuffer));
 
     if (!m_osInterface->bEnableKmdMediaFrameTracking && veboxHeap)
@@ -215,10 +220,8 @@ MOS_STATUS VeboxCopyStateNext::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE 
         flushDwParams.dwDataDW1 = veboxHeap->dwNextTag;
         VEBOX_COPY_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_FLUSH_DW)(&cmdBuffer));
     }
-
-    VEBOX_COPY_CHK_STATUS_RETURN(m_miItf->AddMiBatchBufferEnd(
-        &cmdBuffer,
-        nullptr));
+    VEBOX_COPY_CHK_STATUS_RETURN(perfProfiler->AddPerfCollectEndCmd((void*)this, m_osInterface, m_miItf, &cmdBuffer));
+    VEBOX_COPY_CHK_STATUS_RETURN(m_miItf->AddMiBatchBufferEnd(&cmdBuffer, nullptr));
 
     // Return unused command buffer space to OS
     m_osInterface->pfnReturnCommandBuffer(
@@ -342,8 +345,10 @@ MOS_STATUS VeboxCopyStateNext::SetupVeboxSurfaceState(
 
     mhwVeboxSurfaceStateCmdParams->SurfInput.bActive    = mhwVeboxSurfaceStateCmdParams->SurfOutput.bActive    = true;
     mhwVeboxSurfaceStateCmdParams->SurfInput.dwBitDepth = mhwVeboxSurfaceStateCmdParams->SurfOutput.dwBitDepth = inputSurface->dwDepth;
-    mhwVeboxSurfaceStateCmdParams->SurfInput.dwHeight   = mhwVeboxSurfaceStateCmdParams->SurfOutput.dwHeight   = inputSurface->dwHeight;
-    mhwVeboxSurfaceStateCmdParams->SurfInput.dwWidth    = mhwVeboxSurfaceStateCmdParams->SurfOutput.dwWidth    = inputSurface->dwWidth;
+    mhwVeboxSurfaceStateCmdParams->SurfInput.dwHeight   = mhwVeboxSurfaceStateCmdParams->SurfOutput.dwHeight   = 
+        MOS_MIN(inputSurface->dwHeight, ((outputSurface!= nullptr) ? outputSurface->dwHeight : inputSurface->dwHeight));
+    mhwVeboxSurfaceStateCmdParams->SurfInput.dwWidth    = mhwVeboxSurfaceStateCmdParams->SurfOutput.dwWidth    = 
+        MOS_MIN(inputSurface->dwWidth, ((outputSurface != nullptr) ? outputSurface->dwWidth : inputSurface->dwWidth));
     mhwVeboxSurfaceStateCmdParams->SurfInput.Format     = mhwVeboxSurfaceStateCmdParams->SurfOutput.Format     = inputSurface->Format;
 
     MOS_SURFACE inputDetails, outputDetails;

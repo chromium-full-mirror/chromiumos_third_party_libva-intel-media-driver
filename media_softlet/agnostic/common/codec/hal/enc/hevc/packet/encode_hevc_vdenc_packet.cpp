@@ -539,12 +539,17 @@ namespace encode
             }
         }
         else if (m_osInterface->bInlineCodecStatusUpdate
-#ifdef _ENCODE_RESERVED
-            && !(m_basicFeature->m_rsvdState && m_basicFeature->m_rsvdState->GetFeatureRsvdFlag())
-#endif
+            && !(m_basicFeature->m_422State && m_basicFeature->m_422State->GetFeature422Flag())
             )
         {
-            ENCODE_CHK_STATUS_RETURN(UpdateStatusReport(statusReportGlobalCount, &cmdBuffer));
+            if (feature->IsBRCEnabled())
+            {
+                ENCODE_CHK_STATUS_RETURN(UpdateStatusReport(statusReportGlobalCount, &cmdBuffer));
+            }
+            else
+            {
+                ENCODE_CHK_STATUS_RETURN(MediaPacket::UpdateStatusReportNext(statusReportGlobalCount, &cmdBuffer));
+            }
         }
 
         CODECHAL_DEBUG_TOOL(
@@ -1599,6 +1604,14 @@ namespace encode
 
         ENCODE_FUNC_CALL();
 
+        auto packetUtilities = m_pipeline->GetPacketUtilities();
+        ENCODE_CHK_NULL_RETURN(packetUtilities);
+        if (m_basicFeature->m_setMarkerEnabled)
+        {
+            PMOS_RESOURCE presSetMarker = m_osInterface->pfnGetMarkerResource(m_osInterface);
+            ENCODE_CHK_STATUS_RETURN(packetUtilities->SendMarkerCommand(&cmdBuffer, presSetMarker));
+        }
+
 #ifdef _MMC_SUPPORTED
         ENCODE_CHK_NULL_RETURN(m_mmcState);
         ENCODE_CHK_STATUS_RETURN(m_mmcState->SendPrologCmd(&cmdBuffer, false));
@@ -1610,6 +1623,12 @@ namespace encode
         genericPrologParams.pvMiInterface = nullptr;
         genericPrologParams.bMmcEnabled   = m_mmcState ? m_mmcState->IsMmcEnabled() : false;
         ENCODE_CHK_STATUS_RETURN(Mhw_SendGenericPrologCmdNext(&cmdBuffer, &genericPrologParams, m_miItf));
+
+        // Send predication command
+        if (m_basicFeature->m_predicationEnabled)
+        {
+            ENCODE_CHK_STATUS_RETURN(packetUtilities->SendPredicationCommand(&cmdBuffer));
+        }
 
         return eStatus;
     }
@@ -2207,9 +2226,7 @@ namespace encode
         // needs to be enabled for 1st pass in multi-pass case
         // This bit is ignored if PAK only second pass is enabled.
         if ((m_pipeline->GetCurrentPass() == 0) && !m_pipeline->IsLastPass()
-#ifdef _ENCODE_RESERVED
-            || (m_basicFeature->m_rsvdState && m_basicFeature->m_rsvdState->GetFeatureRsvdFlag())
-#endif
+            || (m_basicFeature->m_422State && m_basicFeature->m_422State->GetFeature422Flag())
         )
         {
             params.pakObjCmdStreamOut = true;

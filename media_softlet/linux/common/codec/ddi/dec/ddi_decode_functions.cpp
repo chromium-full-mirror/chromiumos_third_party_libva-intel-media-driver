@@ -50,10 +50,6 @@
 
 using namespace decode;
 
-#if MOS_EVENT_TRACE_DUMP_SUPPORTED
-static uint32_t DecodeFrameIndex = 0;
-#endif
-
 VAStatus DdiDecodeFunctions::CreateConfig (
     VADriverContextP  ctx,
     VAProfile         profile,
@@ -810,7 +806,7 @@ VAStatus DdiDecodeFunctions::MapBufferInternal(
         if (buf->bo)
         {
             uint32_t timeout_NS = 100000000;
-            while (0 != mos_gem_bo_wait(buf->bo, timeout_NS))
+            while (0 != mos_bo_wait(buf->bo, timeout_NS))
             {
                 // Just loop while gem_bo_wait times-out.
             }

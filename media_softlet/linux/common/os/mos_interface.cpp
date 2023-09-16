@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2009-2022, Intel Corporation
+* Copyright (c) 2009-2023, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -202,7 +202,7 @@ MOS_STATUS MosInterface::CreateOsStreamState(
     MOS_OS_CHK_NULL_RETURN(skuTable);
     if (MEDIA_IS_SKU(skuTable, FtrGucSubmission))
     {
-        (*streamState)->bGucSubmission = true;
+        (*streamState)->bParallelSubmission = true;
     }
 
 #if (_DEBUG || _RELEASE_INTERNAL)
@@ -245,7 +245,7 @@ MOS_STATUS MosInterface::CreateOsStreamState(
         regValue,
         __MEDIA_USER_FEATURE_VALUE_ENABLE_GUC_SUBMISSION,
         MediaUserSetting::Group::Device);
-    (*streamState)->bGucSubmission = (*streamState)->bGucSubmission && regValue;
+    (*streamState)->bParallelSubmission = (*streamState)->bParallelSubmission && regValue;
 
     //KMD Virtual Engine DebugOverride
     // 0: not Override
@@ -386,7 +386,7 @@ MOS_STATUS MosInterface::InitStreamParameters(
     context->m_userSettingPtr   = ((PMOS_CONTEXT)extraParams)->m_userSettingPtr;
     context->m_auxTableMgr      = osDeviceContext->GetAuxTableMgr();
 
-    mos_bufmgr_gem_enable_reuse(bufMgr);
+    mos_bufmgr_enable_reuse(bufMgr);
 
     context->m_skuTable            = *osDeviceContext->GetSkuTable();
     context->m_waTable             = *osDeviceContext->GetWaTable();
@@ -402,10 +402,14 @@ MOS_STATUS MosInterface::InitStreamParameters(
     {
         MOS_TraceEventExt(EVENT_GPU_CONTEXT_CREATE, EVENT_TYPE_START,
                           &eStatus, sizeof(eStatus), nullptr, 0);
-        context->intel_context = mos_gem_context_create_ext(context->bufmgr, 0, context->m_protectedGEMContext);
+        context->intel_context = mos_context_create_ext(context->bufmgr, 0, context->m_protectedGEMContext);
         MOS_OS_CHK_NULL_RETURN(context->intel_context);
-        context->intel_context->vm = mos_gem_vm_create(context->bufmgr);
-        MOS_OS_CHK_NULL_RETURN(context->intel_context->vm);
+        context->intel_context->vm_id = mos_vm_create(context->bufmgr);
+        if (context->intel_context->vm_id == INVALID_VM)
+        {
+            MOS_OS_ASSERTMESSAGE("Failed to create vm.\n");
+            return MOS_STATUS_UNKNOWN;
+        }
         MOS_TraceEventExt(EVENT_GPU_CONTEXT_CREATE, EVENT_TYPE_END,
                           &context->intel_context, sizeof(void *),
                           &eStatus, sizeof(eStatus));
@@ -437,23 +441,7 @@ MOS_STATUS MosInterface::InitStreamParameters(
 
 #ifndef ANDROID
     {
-        drm_i915_getparam_t gp;
-        int32_t             ret   = -1;
-        int32_t             value = 0;
-
-        //KMD support VCS2?
-        gp.value = &value;
-        gp.param = I915_PARAM_HAS_BSD2;
-
-        ret = drmIoctl(context->fd, DRM_IOCTL_I915_GETPARAM, &gp);
-        if (ret == 0 && value != 0)
-        {
-            context->bKMDHasVCS2 = true;
-        }
-        else
-        {
-            context->bKMDHasVCS2 = false;
-        }
+        context->bKMDHasVCS2 = mos_has_bsd2(context->bufmgr);
     }
 #endif
 #if (_DEBUG || _RELEASE_INTERNAL)
@@ -585,10 +573,10 @@ MOS_STATUS MosInterface::CreateGpuContext(
             return MOS_STATUS_UNKNOWN;
         };
 
-        if (mos_hweight8(sseu.subslice_mask) > createOption.packed.SubSliceCount)
+        if (mos_hweight8(osParameters->intel_context, sseu.subslice_mask) > createOption.packed.SubSliceCount)
         {
-            sseu.subslice_mask = mos_switch_off_n_bits(sseu.subslice_mask,
-                mos_hweight8(sseu.subslice_mask) - createOption.packed.SubSliceCount);
+            sseu.subslice_mask = mos_switch_off_n_bits(osParameters->intel_context, sseu.subslice_mask,
+                mos_hweight8(osParameters->intel_context, sseu.subslice_mask) - createOption.packed.SubSliceCount);
         }
 
         if (mos_set_context_param_sseu(osParameters->intel_context, sseu))
@@ -1841,6 +1829,22 @@ MOS_STATUS MosInterface::FreeResource(
     return status;
 }
 
+MOS_STATUS MosInterface::FreeResource(
+    OsDeviceContext    *osDeviceContext,
+    MOS_RESOURCE_HANDLE resource,
+    uint32_t            flag
+#if MOS_MESSAGES_ENABLED
+    ,
+    const char *functionName,
+    const char *filename,
+    int32_t     line
+#endif  // MOS_MESSAGES_ENABLED
+)
+{
+    MOS_OS_FUNCTION_ENTER;
+    return MOS_STATUS_UNIMPLEMENTED;
+}
+
 MOS_STATUS MosInterface::GetResourceInfo(
     MOS_STREAM_HANDLE   streamState,
     MOS_RESOURCE_HANDLE resource,
@@ -1979,6 +1983,12 @@ MOS_STATUS MosInterface::GetResourceInfo(
     details.YoffsetForVplane = (details.VPlaneOffset.iSurfaceOffset - details.dwOffset) / details.dwPitch +
                               details.VPlaneOffset.iYOffset;
 
+    // Update Uncompressed write request from resources
+    if (gmmResourceInfo->GetMmcHint(0) == GMM_MMC_HINT_OFF)
+    {
+        resource->bUncompressedWriteNeeded = true;
+    }
+
     return eStatus;
 }
 
@@ -2028,6 +2038,16 @@ void *MosInterface::LockMosResource(
     return pData;
 }
 
+void *MosInterface::LockMosResource(
+    OsDeviceContext    *osDeviceContext,
+    MOS_RESOURCE_HANDLE resource,
+    PMOS_LOCK_PARAMS    flags,
+    bool                isDumpPacket)
+{
+    MOS_OS_FUNCTION_ENTER;
+    return nullptr;
+}
+
 MOS_STATUS MosInterface::UnlockMosResource(
     MOS_STREAM_HANDLE   streamState,
     MOS_RESOURCE_HANDLE resource)
@@ -2056,6 +2076,14 @@ MOS_STATUS MosInterface::UnlockMosResource(
     eStatus = GraphicsResourceSpecificNext::UnlockExternalResource(streamState, resource);
 
     return eStatus;
+}
+
+MOS_STATUS MosInterface::UnlockMosResource(
+    OsDeviceContext    *osDeviceContext,
+    MOS_RESOURCE_HANDLE resource)
+{
+    MOS_OS_FUNCTION_ENTER;
+    return MOS_STATUS_UNIMPLEMENTED;
 }
 
 MOS_STATUS MosInterface::UpdateResourceUsageType(
@@ -2107,7 +2135,7 @@ uint64_t MosInterface::GetResourceGfxAddress(
     MOS_OS_CHK_NULL_RETURN(streamState);
     MOS_OS_CHK_NULL_RETURN(resource);
 
-    if (!mos_gem_bo_is_softpin(resource->bo))
+    if (!mos_bo_is_softpin(resource->bo))
     {
         mos_bo_set_softpin(resource->bo);
     }
@@ -2491,6 +2519,8 @@ MOS_STATUS MosInterface::DecompResource(
 
         MOS_OS_CHK_NULL_RETURN(mosDecompression);
         mosDecompression->MemoryDecompress(resource);
+
+        MOS_OS_CHK_STATUS_RETURN(MosInterface::SetMemoryCompressionHint(streamState, resource, false));
     }
 
     return MOS_STATUS_SUCCESS;
@@ -2608,6 +2638,25 @@ GMM_CLIENT_CONTEXT *MosInterface::GetGmmClientContext(
     }
 
     return nullptr;
+}
+
+unsigned int MosInterface::GetPATIndexFromGmm(
+    GMM_CLIENT_CONTEXT *gmmClient,
+    GMM_RESOURCE_INFO *gmmResourceInfo)
+{
+    if (gmmClient && gmmResourceInfo)
+    {
+        // GetDriverProtectionBits funtion could hide gmm details info,
+        // and we should use GetDriverProtectionBits to replace CachePolicyGetPATIndex in future.
+        // isCompressionEnable could be false temparaily.
+        bool isCompressionEnable = false;
+        return gmmClient->CachePolicyGetPATIndex(
+                                            gmmResourceInfo,
+                                            gmmResourceInfo->GetCachePolicyUsage(),
+                                            &isCompressionEnable,
+                                            gmmResourceInfo->GetResFlags().Info.Cacheable);
+    }
+    return PAT_INDEX_INVALID;
 }
 
 void MosInterface::GetGpuPriority(MOS_STREAM_HANDLE streamState, int32_t* pPriority)
@@ -2802,6 +2851,13 @@ uint8_t MosInterface::GetEngineLogicId(
         streamState->virtualEngineInterface->GetEngineLogicId(instanceIdx) : 0;
 }
 
+MOS_STATUS MosInterface::SetGpuVirtualAddress(
+    PMOS_RESOURCE          pResource,
+    uint64_t               address)
+{
+    return MOS_STATUS_SUCCESS;
+}
+
 #endif  // _DEBUG || _RELEASE_INTERNAL
 MOS_STATUS MosInterface::ComposeCommandBufferHeader(
     MOS_STREAM_HANDLE     streamState,
@@ -2890,6 +2946,10 @@ void MosInterface::SetPerfTag(MOS_STREAM_HANDLE streamState, uint32_t perfTag)
 
     case COMPONENT_Encode:
         componentTag = PERFTAG_ENCODE;
+        break;
+
+    case COMPONENT_MCPY:
+        componentTag = PERFTAG_VPREP;
         break;
 
     default:
@@ -3712,18 +3772,6 @@ MOS_STATUS MosInterface::RegisterBBCompleteNotifyEvent(
     return MOS_STATUS_SUCCESS;
 }
 
-void MosInterface::InsertRTLog(
-    MOS_STREAM_HANDLE streamState,
-    MOS_OCA_RTLOG_COMPONENT_TPYE componentType,
-    bool isErr,
-    int32_t id,
-    uint8_t paramCount,
-    const void *param)
-{
-    MosOcaRTLogMgr &ocaRTLogMgr = MosOcaRTLogMgr::GetInstance();
-    ocaRTLogMgr.InsertRTLog(componentType, isErr, id, paramCount, param);
-}
-
 void MosInterface::GetRtLogResourceInfo(
     MOS_STREAM_HANDLE streamState,
     PMOS_RESOURCE &osResource,
@@ -3751,4 +3799,22 @@ bool MosInterface::IsPooledResource(MOS_STREAM_HANDLE streamState, PMOS_RESOURCE
 MOS_TILE_TYPE MosInterface::MapTileType(GMM_RESOURCE_FLAG flags, GMM_TILE_TYPE type)
 {
     return MOS_TILE_INVALID;
+}
+
+MOS_STATUS MosInterface::SetMultiEngineEnabled(
+    PMOS_INTERFACE pOsInterface,
+    MOS_COMPONENT  component,
+    bool           enabled)
+{
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS MosInterface::GetMultiEngineStatus(
+    PMOS_INTERFACE pOsInterface,
+    PLATFORM      *platform,
+    MOS_COMPONENT  component,
+    bool          &isMultiDevices,
+    bool          &isMultiEngine)
+{
+    return MOS_STATUS_SUCCESS;
 }

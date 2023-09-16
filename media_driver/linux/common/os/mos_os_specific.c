@@ -1181,12 +1181,12 @@ void Linux_Destroy(
 
     if (!MODSEnabled && (pOsContext->intel_context))
     {
-        if (pOsContext->intel_context->vm)
+        if (pOsContext->intel_context->vm_id != INVALID_VM)
         {
-            mos_gem_vm_destroy(pOsContext->intel_context->bufmgr,pOsContext->intel_context->vm);
-            pOsContext->intel_context->vm = nullptr;
+            mos_vm_destroy(pOsContext->intel_context->bufmgr,pOsContext->intel_context->vm_id);
+            pOsContext->intel_context->vm_id = INVALID_VM;
         }
-        mos_gem_context_destroy(pOsContext->intel_context);
+        mos_context_destroy(pOsContext->intel_context);
     }
 
     MOS_Delete(pOsContext);
@@ -1342,14 +1342,14 @@ MOS_STATUS Linux_InitContext(
     pContext->m_auxTableMgr   = pOsDriverContext->m_auxTableMgr;
     pContext->m_userSettingPtr = pOsDriverContext->m_userSettingPtr;
 
-    mos_bufmgr_gem_enable_reuse(pOsDriverContext->bufmgr);
+    mos_bufmgr_enable_reuse(pOsDriverContext->bufmgr);
 
     // DDI layer can pass over the DeviceID.
     iDeviceId = pOsDriverContext->iDeviceId;
     if (0 == iDeviceId)
     {
         //Such as CP, it calls InitMosInterface() dretly without creating MediaContext.
-        iDeviceId = mos_bufmgr_gem_get_devid(pOsDriverContext->bufmgr);
+        iDeviceId = mos_bufmgr_get_devid(pOsDriverContext->bufmgr);
         pOsDriverContext->iDeviceId = iDeviceId;
 
         MOS_OS_CHK_STATUS_MESSAGE(
@@ -1378,11 +1378,11 @@ MOS_STATUS Linux_InitContext(
     // when MODS enabled, intel_context will be created by pOsContextSpecific, should not recreate it here, or will cause memory leak.
     if (!MODSEnabled)
     {
-       pContext->intel_context = mos_gem_context_create_ext(pOsDriverContext->bufmgr, 0, pOsDriverContext->m_protectedGEMContext);
+       pContext->intel_context = mos_context_create_ext(pOsDriverContext->bufmgr, 0, pOsDriverContext->m_protectedGEMContext);
        if (!Mos_Solo_IsEnabled(nullptr) && pContext->intel_context)
        {
-           pContext->intel_context->vm = mos_gem_vm_create(pOsDriverContext->bufmgr);
-           if (pContext->intel_context->vm == nullptr)
+           pContext->intel_context->vm_id = mos_vm_create(pOsDriverContext->bufmgr);
+           if (pContext->intel_context->vm_id == INVALID_VM)
            {
                MOS_OS_ASSERTMESSAGE("Failed to create vm.\n");
                return MOS_STATUS_UNKNOWN;
@@ -1390,10 +1390,10 @@ MOS_STATUS Linux_InitContext(
        }
        else //try legacy context create ioctl if DRM_IOCTL_I915_GEM_CONTEXT_CREATE_EXT is not supported
        {
-           pContext->intel_context = mos_gem_context_create(pOsDriverContext->bufmgr);
+           pContext->intel_context = mos_context_create(pOsDriverContext->bufmgr);
            if (pContext->intel_context)
            {
-               pContext->intel_context->vm = nullptr;
+               pContext->intel_context->vm_id = INVALID_VM;
            }
        }
 
@@ -1480,28 +1480,7 @@ MOS_STATUS Linux_InitContext(
 
 #ifndef ANDROID
     {
-        drm_i915_getparam_t gp;
-        int32_t             ret   = -1;
-        int32_t             value = 0;
-
-        //KMD support VCS2?
-        gp.value = &value;
-        gp.param = I915_PARAM_HAS_BSD2;
-        if (pContext->fd < 0)
-        {
-            MOS_OS_ASSERTMESSAGE("pContext->fd is not valid.");
-            eStatus = MOS_STATUS_INVALID_PARAMETER;
-            goto finish;
-        }
-        ret = drmIoctl(pContext->fd, DRM_IOCTL_I915_GETPARAM, &gp);
-        if (ret == 0 && value != 0)
-        {
-            pContext->bKMDHasVCS2 = true;
-        }
-        else
-        {
-            pContext->bKMDHasVCS2 = false;
-        }
+        pContext->bKMDHasVCS2 = mos_has_bsd2(pContext->bufmgr);
     }
     if (pContext->bKMDHasVCS2)
     {
@@ -1902,12 +1881,12 @@ MOS_STATUS Mos_DestroyInterface(PMOS_INTERFACE pOsInterface)
         }
         if (perStreamParameters->intel_context)
         {
-            if (perStreamParameters->intel_context->vm)
+            if (perStreamParameters->intel_context->vm_id != INVALID_VM)
             {
-                mos_gem_vm_destroy(perStreamParameters->intel_context->bufmgr, perStreamParameters->intel_context->vm);
-                perStreamParameters->intel_context->vm = nullptr;
+                mos_vm_destroy(perStreamParameters->intel_context->bufmgr, perStreamParameters->intel_context->vm_id);
+                perStreamParameters->intel_context->vm_id = INVALID_VM;
             }
-            mos_gem_context_destroy(perStreamParameters->intel_context);
+            mos_context_destroy(perStreamParameters->intel_context);
             perStreamParameters->intel_context = nullptr;
         }
         MOS_Delete(perStreamParameters);
@@ -3009,7 +2988,7 @@ void  *Mos_Specific_LockResource(
         {
             if (pContext->bIsAtomSOC)
             {
-                mos_gem_bo_map_gtt(bo);
+                mos_bo_map_gtt(bo);
             }
             else
             {
@@ -3035,13 +3014,13 @@ void  *Mos_Specific_LockResource(
                     }
                     else
                     {
-                        mos_gem_bo_map_gtt(bo);
+                        mos_bo_map_gtt(bo);
                         pOsResource->MmapOperation = MOS_MMAP_OPERATION_MMAP_GTT;
                     }
                 }
                 else if (pLockFlags->Uncached)
                 {
-                    mos_gem_bo_map_wc(bo);
+                    mos_bo_map_wc(bo);
                     pOsResource->MmapOperation = MOS_MMAP_OPERATION_MMAP_WC;
                 }
                 else
@@ -3134,7 +3113,7 @@ MOS_STATUS Mos_Specific_UnlockResource(
         {
            if (pContext->bIsAtomSOC)
            {
-               mos_gem_bo_unmap_gtt(pOsResource->bo);
+               mos_bo_unmap_gtt(pOsResource->bo);
            }
            else
            {
@@ -3150,10 +3129,10 @@ MOS_STATUS Mos_Specific_UnlockResource(
                switch(pOsResource->MmapOperation)
                {
                    case MOS_MMAP_OPERATION_MMAP_GTT:
-                        mos_gem_bo_unmap_gtt(pOsResource->bo);
+                        mos_bo_unmap_gtt(pOsResource->bo);
                         break;
                    case MOS_MMAP_OPERATION_MMAP_WC:
-                        mos_gem_bo_unmap_wc(pOsResource->bo);
+                        mos_bo_unmap_wc(pOsResource->bo);
                         break;
                    case MOS_MMAP_OPERATION_MMAP:
                         mos_bo_unmap(pOsResource->bo);
@@ -4285,7 +4264,7 @@ uint64_t Mos_Specific_GetResourceGfxAddress(
         return MosInterface::GetResourceGfxAddress(pOsInterface->osStreamState, pResource);
     }
 
-    if (!mos_gem_bo_is_softpin(pResource->bo))
+    if (!mos_bo_is_softpin(pResource->bo))
     {
         mos_bo_set_softpin(pResource->bo);
     }
@@ -4436,10 +4415,10 @@ MOS_STATUS Mos_Specific_CreateGpuContext(
                 return MOS_STATUS_UNKNOWN;
             };
 
-            if (mos_hweight8(sseu.subslice_mask) > createOption->packed.SubSliceCount)
+            if (mos_hweight8(pOsInterface->pOsContext->intel_context, sseu.subslice_mask) > createOption->packed.SubSliceCount)
             {
-                sseu.subslice_mask = mos_switch_off_n_bits(sseu.subslice_mask,
-                        mos_hweight8(sseu.subslice_mask)-createOption->packed.SubSliceCount);
+                sseu.subslice_mask = mos_switch_off_n_bits(pOsInterface->pOsContext->intel_context, sseu.subslice_mask,
+                        mos_hweight8(pOsInterface->pOsContext->intel_context, sseu.subslice_mask)-createOption->packed.SubSliceCount);
             }
 
             if (mos_set_context_param_sseu(pOsInterface->pOsContext->intel_context, sseu))
@@ -4452,6 +4431,7 @@ MOS_STATUS Mos_Specific_CreateGpuContext(
         createOption->gpuNode = GpuNode;
         if (pOsInterface->apoMosEnabled)
         {
+            MOS_OS_CHK_NULL_RETURN(pOsInterface->osStreamState);
             // Update ctxBasedScheduling from legacy OsInterface
             pOsInterface->osStreamState->ctxBasedScheduling = pOsInterface->ctxBasedScheduling;
             if (pOsContextSpecific->GetGpuContextHandle(mosGpuCxt) == MOS_GPU_CONTEXT_INVALID_HANDLE)
@@ -6830,7 +6810,7 @@ static MOS_STATUS Mos_Specific_InitInterface_Ve(
         MOS_OS_CHK_NULL_RETURN(skuTable);
         if (MEDIA_IS_SKU(skuTable, FtrGucSubmission))
         {
-            osInterface->bGucSubmission = true;
+            osInterface->bParallelSubmission = true;
         }
 
         //Read Scalable/Legacy Decode mode on Gen11+
@@ -6865,7 +6845,7 @@ static MOS_STATUS Mos_Specific_InitInterface_Ve(
             regValue,
             __MEDIA_USER_FEATURE_VALUE_ENABLE_GUC_SUBMISSION,
             MediaUserSetting::Group::Device);
-        osInterface->bGucSubmission = osInterface->bGucSubmission && regValue;
+        osInterface->bParallelSubmission = osInterface->bParallelSubmission && regValue;
 
         // read the "Force VEBOX" user feature key
         // 0: not force
@@ -6943,6 +6923,28 @@ bool Mos_Specific_pfnIsMultipleCodecDevicesInUse(
     return false;
 }
 
+MOS_STATUS Mos_Specific_pfnSetMultiEngineEnabled(
+    PMOS_INTERFACE pOsInterface,
+    MOS_COMPONENT  component,
+    bool           enabled)
+{
+    MOS_OS_FUNCTION_ENTER;
+
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS Mos_Specific_pfnGetMultiEngineStatus(
+    PMOS_INTERFACE pOsInterface,
+    PLATFORM      *platform,
+    MOS_COMPONENT  component,
+    bool          &isMultiDevices,
+    bool          &isMultiEngine)
+{
+    MOS_OS_FUNCTION_ENTER;
+
+    return MOS_STATUS_SUCCESS;
+}
+
 MOS_GPU_NODE Mos_Specific_pfnGetLatestVirtualNode(
     PMOS_INTERFACE pOsInterface,
     MOS_COMPONENT  component)
@@ -6972,6 +6974,11 @@ void Mos_Specific_pfnSetDecoderVirtualNodePerStream(
     MOS_GPU_NODE   node)
 {
     MOS_OS_FUNCTION_ENTER;
+}
+
+bool Mos_Specific_IsAsyncDevice(PMOS_INTERFACE pOsInterface)
+{
+    return false;
 }
 
 //! \brief    Unified OS Initializes OS Linux Interface
@@ -7130,6 +7137,8 @@ MOS_STATUS Mos_Specific_InitInterface(
 
     pOsInterface->pfnIsMismatchOrderProgrammingSupported    = Mos_Specific_IsMismatchOrderProgrammingSupported;
     pOsInterface->pfnIsMultipleCodecDevicesInUse            = Mos_Specific_pfnIsMultipleCodecDevicesInUse;
+    pOsInterface->pfnSetMultiEngineEnabled                  = Mos_Specific_pfnSetMultiEngineEnabled;
+    pOsInterface->pfnGetMultiEngineStatus                   = Mos_Specific_pfnGetMultiEngineStatus;
     pOsInterface->pfnGetLatestVirtualNode                   = Mos_Specific_pfnGetLatestVirtualNode;
     pOsInterface->pfnSetLatestVirtualNode                   = Mos_Specific_pfnSetLatestVirtualNode;
     pOsInterface->pfnGetDecoderVirtualNodePerStream         = Mos_Specific_pfnGetDecoderVirtualNodePerStream;
@@ -7146,6 +7155,8 @@ MOS_STATUS Mos_Specific_InitInterface(
     pOsInterface->pfnCreateCmDevice                         = CreateCmDevice;
     pOsInterface->pfnDestroyCmDevice                        = DestroyCmDevice;
     pOsInterface->pfnInitCmInterface                        = InitCmOsDDIInterface;
+
+    pOsInterface->pfnIsAsynDevice                           = Mos_Specific_IsAsyncDevice;
 
 #if (_DEBUG || _RELEASE_INTERNAL)
     pOsInterface->pfnGetEngineLogicId                       = Mos_Specific_GetEngineLogicId;
@@ -7257,7 +7268,7 @@ MOS_STATUS Mos_Specific_InitInterface(
 
         //Added by Ben for video memory allocation
         pOsContext->bufmgr = pOsDriverContext->bufmgr;
-        mos_bufmgr_gem_enable_reuse(pOsDriverContext->bufmgr);
+        mos_bufmgr_enable_reuse(pOsDriverContext->bufmgr);
     }
 
     pOsInterface->pOsContext                  = pOsContext;
@@ -7493,12 +7504,8 @@ PMOS_RESOURCE Mos_Specific_GetMarkerResource(
 //!
 uint32_t Mos_Specific_GetTsFrequency(PMOS_INTERFACE osInterface)
 {
-    int32_t freq = 0;
-    drm_i915_getparam_t gp;
-    MOS_ZeroMemory(&gp, sizeof(gp));
-    gp.param = I915_PARAM_CS_TIMESTAMP_FREQUENCY;
-    gp.value = &freq;
-    int ret = drmIoctl(osInterface->pOsContext->fd, DRM_IOCTL_I915_GETPARAM, &gp);
+    uint32_t freq = 0;
+    int ret = mos_get_ts_frequency(osInterface->pOsContext->bufmgr, &freq);
     if(ret == 0)
     {
         return freq;

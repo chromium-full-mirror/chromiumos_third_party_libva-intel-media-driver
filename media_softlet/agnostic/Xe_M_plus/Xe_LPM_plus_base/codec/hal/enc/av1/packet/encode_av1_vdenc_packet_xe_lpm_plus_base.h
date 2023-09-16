@@ -45,6 +45,8 @@ public:
         m_avpItf       = std::static_pointer_cast<mhw::vdbox::avp::Itf>(hw->GetAvpInterfaceNext());
     }
 
+    MOS_STATUS Init() override;
+
     //!
     //! \brief  Add the command sequence into the commandBuffer and
     //!         and return to the caller task
@@ -66,6 +68,8 @@ protected:
         uint32_t            tileCol,
         uint32_t            tileRowPass = 0);
 
+    virtual MOS_STATUS AddCommandsExt(MOS_COMMAND_BUFFER& cmdBuffer) { return MOS_STATUS_SUCCESS; };
+
     MOS_STATUS Construct3rdLevelBatch();
 
     void UpdateParameters() override;
@@ -74,11 +78,7 @@ protected:
 
     MOS_STATUS PatchPictureLevelCommands(const uint8_t &packetPhase, MOS_COMMAND_BUFFER &cmdBuffer);
 
-    MOS_STATUS AddPictureVdencCommands(MOS_COMMAND_BUFFER &cmdBuffer);
-
     virtual MOS_STATUS AllocateResources() override;
-
-    MOS_STATUS ReadAvpStatus(MHW_VDBOX_NODE_IND vdboxIndex, MediaStatusReport *statusReport, MOS_COMMAND_BUFFER &cmdBuffer) override;
 
     MOS_STATUS RegisterPostCdef();
 

@@ -53,8 +53,15 @@ MediaMemDeCompNext::~MediaMemDeCompNext()
 
     if (m_cpInterface)
     {
-        Delete_MhwCpInterface(m_cpInterface);
-        m_cpInterface = nullptr;
+        if (m_osInterface)
+        {
+            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
+            m_cpInterface = nullptr;
+        }
+        else
+        {
+            VPHAL_MEMORY_DECOMP_ASSERTMESSAGE("Failed to destroy cpInterface.");
+        }
     }
 
     if (m_osInterface)
@@ -196,8 +203,8 @@ MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy(PMOS_RESOURCE inputResource, PMOS
                 break;
             }
             // This resource is a series of bytes. Is not 2 dimensional.
-            uint32_t sizeSrcMain = sourceSurface.dwWidth;
-            uint32_t sizeTargetMain = targetSurface.dwWidth;
+            uint32_t sizeSrcMain    = sourceSurface.dwSize;
+            uint32_t sizeTargetMain = targetSurface.dwSize;
             eStatus = MOS_SecureMemcpy(lockedTarAddr, sizeTargetMain, lockedSrcAddr, sizeSrcMain);
             m_osInterface->pfnUnlockResource(m_osInterface, &sourceSurface.OsResource);
             m_osInterface->pfnUnlockResource(m_osInterface, &targetSurface.OsResource);

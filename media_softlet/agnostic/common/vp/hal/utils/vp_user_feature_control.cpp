@@ -287,6 +287,10 @@ VpUserFeatureControl::VpUserFeatureControl(MOS_INTERFACE &osInterface, VpPlatfor
 
 VpUserFeatureControl::~VpUserFeatureControl()
 {
+    if (m_pOcaFeatureControlInfo)
+    {
+        MOS_FreeMemAndSetNull(m_pOcaFeatureControlInfo);
+    }
 }
 
 MOS_STATUS VpUserFeatureControl::CreateUserSettingForDebug()
@@ -372,5 +376,21 @@ MOS_STATUS VpUserFeatureControl::Update(PVP_PIPELINE_PARAMS params)
 
     m_ctrlVal = m_ctrlValDefault;
 
+    if (params->bForceToRender)
+    {
+        m_ctrlVal.disableSfc         = true;
+        m_ctrlVal.disableVeboxOutput = true;
+        VP_PUBLIC_NORMALMESSAGE("Disable SFC and vebox output as task is forced to render.");
+    }
+
     return MOS_STATUS_SUCCESS;
+}
+
+PMOS_OCA_LOG_USER_FEATURE_CONTROL_INFO VpUserFeatureControl::GetOcaFeautreControlInfo()
+{
+    if (nullptr == m_pOcaFeatureControlInfo)
+    {
+        m_pOcaFeatureControlInfo = (PMOS_OCA_LOG_USER_FEATURE_CONTROL_INFO)MOS_AllocAndZeroMemory(sizeof(MOS_OCA_LOG_USER_FEATURE_CONTROL_INFO));
+    }
+    return m_pOcaFeatureControlInfo;
 }

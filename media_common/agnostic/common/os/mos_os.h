@@ -641,7 +641,7 @@ struct MosStreamState
     int32_t eForceVebox                         = 0;        //!< Force select Vebox
 #endif // _DEBUG || _RELEASE_INTERNAL
 
-    bool  bGucSubmission                        = false;    //!< Flag to indicate if guc submission is enabled
+    bool  bParallelSubmission                        = false;    //!< Flag to indicate if parallel submission is enabled
     OS_PER_STREAM_PARAMETERS  perStreamParameters = nullptr; //!< Parameters of OS specific per stream
 
     static void *pvSoloContext;                             //!< pointer to MediaSolo context
@@ -678,6 +678,34 @@ namespace CMRT_UMD
 };
 struct _CM_HAL_STATE;
 typedef struct _CM_HAL_STATE *PCM_HAL_STATE;
+class MhwCpInterface;
+class CpCopyInterface;
+class CodechalSecureDecodeInterface;
+class CodechalSetting;
+class CodechalHwInterface;
+class CodechalHwInterfaceNext;
+
+struct MOS_SURF_DUMP_SURFACE_DEF
+{
+    uint32_t offset;  //!< Offset from start of the plane
+    uint32_t height;  //!< Height in rows
+    uint32_t width;   //!< Width in bytes
+    uint32_t pitch;   //!< Pitch in bytes
+};
+
+struct ResourceDumpAttri
+{
+    MOS_RESOURCE            res           = {};
+    MOS_LOCK_PARAMS         lockFlags     = {};
+    std::string             fullFileName  = {};
+    uint32_t                width         = 0;
+    uint32_t                height        = 0;
+    uint32_t                pitch         = 0;
+    MOS_GFXRES_FREE_FLAGS   resFreeFlags  = {};
+    MOS_PLANE_OFFSET        yPlaneOffset  = {};  // Y surface plane offset
+    MOS_PLANE_OFFSET        uPlaneOffset  = {};  // U surface plane offset
+    MOS_PLANE_OFFSET        vPlaneOffset  = {};  // V surface plane offset
+};
 
 //!
 //! \brief Structure to Unified HAL OS resources
@@ -787,6 +815,7 @@ typedef struct _MOS_INTERFACE
 #endif // (_DEBUG || _RELEASE_INTERNAL)
 
     bool                            apoMosEnabled;                                //!< apo mos or not
+    std::vector<ResourceDumpAttri>  resourceDumpAttriArray;
 
     MEMORY_OBJECT_CONTROL_STATE (* pfnCachePolicyGetMemoryObject) (
         MOS_HW_RESOURCE_DEF         Usage,
@@ -1303,6 +1332,18 @@ typedef struct _MOS_INTERFACE
     bool (*pfnIsMultipleCodecDevicesInUse)(
         PMOS_INTERFACE              pOsInterface);
 
+    MOS_STATUS (*pfnSetMultiEngineEnabled)(
+        PMOS_INTERFACE pOsInterface,
+        MOS_COMPONENT  component,
+        bool           enabled);
+
+    MOS_STATUS (*pfnGetMultiEngineStatus)(
+        PMOS_INTERFACE pOsInterface,
+        PLATFORM      *platform,
+        MOS_COMPONENT  component,
+        bool          &isMultiDevices,
+        bool          &isMultiEngine);
+
     MOS_GPU_NODE(*pfnGetLatestVirtualNode)(
         PMOS_INTERFACE              pOsInterface,
         MOS_COMPONENT               component);
@@ -1642,9 +1683,36 @@ typedef struct _MOS_INTERFACE
     uint8_t (*pfnGetEngineLogicIdByIdx)(
         MOS_STREAM_HANDLE           streamState,
         uint32_t                    instanceIdx);
+
+    //!
+    //! \brief    Set Gpu Virtual Address for Debug
+    //! \details  Manually make page fault
+    //!
+    //! \param    [in] pResource
+    //!           Resource to set Gpu Address
+    //! \param    [in] address
+    //!           Address to set
+    //! \return   MOS_STATUS
+    //!
+    MOS_STATUS (*pfnSetGpuVirtualAddress)(
+        PMOS_RESOURCE               pResource,
+        uint64_t                    address);
 #endif
 
 #if MOS_MEDIASOLO_SUPPORTED
+    //!
+    //! \brief    Solo set ready to execute
+    //! \details  Solo set ready to execute
+    //! \param    [in] osInterface
+    //!           Pointer to OsInterface
+    //! \param    [in] readyToExecute
+    //!           ready to execute
+    //! \return   void
+    //!
+    void (*pfnMosSoloSetReadyToExecute)(
+        PMOS_INTERFACE              osInterface,
+        bool                        readyToExecute);
+
     //!
     //! \brief    Solo Check node limitation
     //! \details  Solo Check node limitation
@@ -1964,6 +2032,44 @@ typedef struct _MOS_INTERFACE
     MOS_STATUS (*pfnInitCmInterface)(
         PCM_HAL_STATE           cmState);
 
+    //!
+    //! \brief    Create MhwCpInterface Object
+    //!           Must use Delete_MhwCpInterface to delete created Object to avoid ULT Memory Leak errors
+    //!
+    //! \return   Return CP Wrapper Object if CPLIB not loaded
+    //!
+    MhwCpInterface* (*pfnCreateMhwCpInterface)(PMOS_INTERFACE osInterface);
+
+    //!
+    //! \brief    Delete the MhwCpInterface Object
+    //!
+    //! \param    [in] *pMhwCpInterface
+    //!           MhwCpInterface
+    //!
+    void (*pfnDeleteMhwCpInterface)(MhwCpInterface *mhwCpInterface);
+
+    CpCopyInterface* (*pfnCreateCpCopyInterface)(MOS_CONTEXT_HANDLE osDriverContext, MOS_STATUS &status);
+
+    void (*pfnDeleteCpCopyInterface)(CpCopyInterface *cpCopyInterface);
+
+    //!
+    //! \brief    Create CodechalSecureDeocde Object
+    //!           Must use Delete_CodechalSecureDecodeInterface to delete created Object to avoid ULT Memory Leak errors
+    //!
+    //! \return   Return CP Wrapper Object
+    //!
+    CodechalSecureDecodeInterface* (*pfnCreateSecureDecodeInterface)(
+        CodechalSetting *codechalSettings,
+        CodechalHwInterface *hwInterfaceInput);
+
+    //!
+    //! \brief    Delete the CodecHalSecureDecode Object
+    //!
+    //! \param    [in] *codechalSecureDecodeInterface
+    //!           CodechalSecureDecodeInterface
+    //!
+    void (*pfnDeleteSecureDecodeInterface)(CodechalSecureDecodeInterface *codechalSecureDecodeInterface);
+
 #if (_DEBUG || _RELEASE_INTERNAL)
     //!
     //! \brief    gpuCtxCreateOption Init for media Scalability
@@ -1979,6 +2085,19 @@ typedef struct _MOS_INTERFACE
         PMOS_INTERFACE                 pOsInterface,
         uint8_t&                       id);
 #endif
+    //!
+    //! \brief    Is Device Async or not
+    //! \details  Is Device Async or not.
+    //!
+    //! \param    PMOS_INTERFACE pOsInterface
+    //!           [in] OS Interface
+    //!
+    //! \return   bool
+    //!           Return true if is async, otherwise false
+    //!
+    bool (*pfnIsAsynDevice)(
+        PMOS_INTERFACE              osInterface);
+
     //!
     //! \brief   Get User Setting instance
     //!
@@ -1999,7 +2118,7 @@ typedef struct _MOS_INTERFACE
     bool                            phasedSubmission = false;                     //!< Flag to indicate if secondary command buffers are submitted together (Win) or separately (Linux)
     bool                            frameSplit = true;                            //!< Flag to indicate if frame split is enabled
     bool                            bSetHandleInvalid = false;
-    bool                            bGucSubmission = false;                       //!< Flag to indicate if guc submission is enabled
+    bool                            bParallelSubmission = false;                       //!< Flag to indicate if parallel submission is enabled
     MOS_CMD_BUF_ATTRI_VE            bufAttriVe[MOS_GPU_CONTEXT_MAX];
 
     MOS_STATUS (*pfnCheckVirtualEngineSupported)(
@@ -2438,6 +2557,20 @@ uint8_t Mos_GetVeEngineCount(
 uint8_t Mos_GetEngineLogicId(
     MOS_STREAM_HANDLE       streamState,
     uint32_t                instanceIdx);
+
+//!
+//! \brief    Set Gpu Virtual Address for Debug
+//! \details  Manually make page fault
+//!
+//! \param    [in] pResource
+//!           Resource to set Gpu Address
+//! \param    [in] address
+//!           Address to set
+//! \return   MOS_STATUS
+//!
+MOS_STATUS MOS_SetGpuVirtualAddress(
+    PMOS_RESOURCE pResource, 
+    uint64_t      address);
 
 #endif
 

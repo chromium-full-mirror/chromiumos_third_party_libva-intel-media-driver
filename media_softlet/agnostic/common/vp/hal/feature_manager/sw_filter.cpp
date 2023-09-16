@@ -1525,6 +1525,12 @@ MOS_STATUS vp::SwFilterHdr::Update(VP_SURFACE *inputSurf, VP_SURFACE *outputSurf
 {
     VP_FUNC_CALL();
 
+    if (m_Params.stage == HDR_STAGE_VEBOX_3DLUT_UPDATE)
+    {
+        VP_PUBLIC_NORMALMESSAGE("HDR 3DLUT Kernel path already update format, skip further update.");
+        return MOS_STATUS_SUCCESS;
+    }
+
     VP_PUBLIC_CHK_NULL_RETURN(inputSurf);
     VP_PUBLIC_CHK_NULL_RETURN(inputSurf->osSurface);
     VP_PUBLIC_CHK_NULL_RETURN(outputSurf);
@@ -2186,6 +2192,20 @@ MOS_STATUS SwFilterSet::Update(VP_SURFACE *inputSurf, VP_SURFACE *outputSurf, Sw
     {
         VP_PUBLIC_CHK_NULL_RETURN(swFilter.second);
         VP_PUBLIC_CHK_STATUS_RETURN(swFilter.second->Update(inputSurf, outputSurf, pipe));
+    }
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS SwFilterSet::AddFeatureGraphRTLog()
+{
+    VP_FUNC_CALL();
+
+    for (auto swFilter : m_swFilters)
+    {
+        if (swFilter.second)
+        {
+            swFilter.second->AddFeatureGraphRTLog();
+        }
     }
     return MOS_STATUS_SUCCESS;
 }

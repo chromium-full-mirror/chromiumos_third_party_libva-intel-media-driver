@@ -306,7 +306,20 @@ VAStatus MediaLibvaUtilNext::GenerateGmmParamsForNoneCompressionExternalSurface(
     MosUtilities::MosZeroMemory(&gmmCustomParams, sizeof(gmmCustomParams));
     gmmCustomParams.Type          = RESOURCE_2D;
     gmmCustomParams.Format        = ConvertMediaFmtToGmmFmt(params.format);
-    gmmCustomParams.BaseWidth64   = params.width;
+    if ((params.format == Media_Format_YV12) || \
+        (params.format == Media_Format_I420) || \
+        (params.format == Media_Format_IYUV) || \
+        (params.format == Media_Format_NV12) || \
+        (params.format == Media_Format_P010) || \
+        (params.format == Media_Format_P012) || \
+        (params.format == Media_Format_P016) || \
+        (params.format == Media_Format_NV21)) {
+        // Align width to 2 for specific planar formats to handle
+        // odd dimensions for external non-compressible surfaces
+        gmmCustomParams.BaseWidth64 = MOS_ALIGN_CEIL(params.width, 2);
+    } else {
+        gmmCustomParams.BaseWidth64 = params.width;
+    }
     gmmCustomParams.BaseHeight    = baseHeight;
     gmmCustomParams.Pitch         = params.pitch;
     gmmCustomParams.Size          = mediaSurface->pSurfDesc->uiSize;
@@ -469,13 +482,13 @@ VAStatus MediaLibvaUtilNext::CreateExternalSurface(
     switch (mediaSurface->pSurfDesc->uiVaMemType)
     {
         case VA_SURFACE_ATTRIB_MEM_TYPE_KERNEL_DRM:
-            bo = mos_bo_gem_create_from_name(mediaDrvCtx->pDrmBufMgr, "MEDIA", mediaSurface->pSurfDesc->ulBuffer);
+            bo = mos_bo_create_from_name(mediaDrvCtx->pDrmBufMgr, "MEDIA", mediaSurface->pSurfDesc->ulBuffer);
             break;
         case VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME:
-            bo = mos_bo_gem_create_from_prime(mediaDrvCtx->pDrmBufMgr, mediaSurface->pSurfDesc->ulBuffer, mediaSurface->pSurfDesc->uiSize);
+            bo = mos_bo_create_from_prime(mediaDrvCtx->pDrmBufMgr, mediaSurface->pSurfDesc->ulBuffer, mediaSurface->pSurfDesc->uiSize);
             break;
         case VA_SURFACE_ATTRIB_MEM_TYPE_DRM_PRIME_2:
-            bo = mos_bo_gem_create_from_prime(mediaDrvCtx->pDrmBufMgr, mediaSurface->pSurfDesc->ulBuffer, mediaSurface->pSurfDesc->uiSize);
+            bo = mos_bo_create_from_prime(mediaDrvCtx->pDrmBufMgr, mediaSurface->pSurfDesc->ulBuffer, mediaSurface->pSurfDesc->uiSize);
             break;
         case VA_SURFACE_ATTRIB_MEM_TYPE_USER_PTR:
 #ifdef DRM_IOCTL_I915_GEM_USERPTR
@@ -721,16 +734,19 @@ VAStatus MediaLibvaUtilNext::CreateInternalSurface(
 
     params.memType = MemoryPolicyManager::UpdateMemoryPolicy(&memPolicyPar);
 
+    unsigned int patIndex = MosInterface::GetPATIndexFromGmm(mediaDrvCtx->pGmmClientContext, gmmResourceInfo);
+    bool isCpuCacheable   = gmmResourceInfo->GetResFlags().Info.Cacheable;
+
     if ( params.tileFormat == I915_TILING_NONE )
     {
-        bo = mos_bo_alloc(mediaDrvCtx->pDrmBufMgr, "MEDIA", gmmSize, 4096, params.memType);
+        bo = mos_bo_alloc(mediaDrvCtx->pDrmBufMgr, "MEDIA", gmmSize, 4096, params.memType, patIndex, isCpuCacheable);
         params.pitch = gmmPitch;
     }
     else
     {
         unsigned long  ulPitch = 0;
         bo = mos_bo_alloc_tiled(mediaDrvCtx->pDrmBufMgr, "MEDIA", gmmPitch, (gmmSize + gmmPitch -1)/gmmPitch, 1, &params.tileFormat, 
-            (unsigned long *)&ulPitch, 0, params.memType);
+            (unsigned long *)&ulPitch, 0, params.memType, patIndex, isCpuCacheable);
         params.pitch = ulPitch;
     }
 
@@ -1141,7 +1157,7 @@ void* MediaLibvaUtilNext::LockSurfaceInternal(DDI_MEDIA_SURFACE  *surface, uint3
 
     if (surface->pMediaCtx->bIsAtomSOC)
     {
-        mos_gem_bo_map_gtt(surface->bo);
+        mos_bo_map_gtt(surface->bo);
     }
     else
     {
@@ -1207,12 +1223,12 @@ void* MediaLibvaUtilNext::LockSurfaceInternal(DDI_MEDIA_SURFACE  *surface, uint3
         }
         else if (flag & MOS_LOCKFLAG_WRITEONLY)
         {
-            mos_gem_bo_map_gtt(surface->bo);
+            mos_bo_map_gtt(surface->bo);
         }
         else
         {
-            mos_gem_bo_map_unsynchronized(surface->bo);     // only call mmap_gtt ioctl
-            mos_gem_bo_start_gtt_access(surface->bo, 0);    // set to GTT domain,0 means readonly
+            mos_bo_map_unsynchronized(surface->bo);     // only call mmap_gtt ioctl
+            mos_bo_start_gtt_access(surface->bo, 0);    // set to GTT domain,0 means readonly
         }
     }
     surface->uiMapFlag = flag;
@@ -1248,7 +1264,7 @@ void MediaLibvaUtilNext::UnlockSurface(DDI_MEDIA_SURFACE  *surface)
     {
         if (surface->pMediaCtx->bIsAtomSOC)
         {
-            mos_gem_bo_unmap_gtt(surface->bo);
+            mos_bo_unmap_gtt(surface->bo);
         }
         else
         {
@@ -1287,7 +1303,7 @@ void MediaLibvaUtilNext::UnlockSurface(DDI_MEDIA_SURFACE  *surface)
             }
             else
             {
-               mos_gem_bo_unmap_gtt(surface->bo);
+               mos_bo_unmap_gtt(surface->bo);
             }
         }
         surface->pData       = nullptr;
@@ -1352,7 +1368,7 @@ void* MediaLibvaUtilNext::LockBuffer(DDI_MEDIA_BUFFER *buf, uint32_t flag)
         {
             if (buf->pMediaCtx->bIsAtomSOC)
             {
-                mos_gem_bo_map_gtt(buf->bo);
+                mos_bo_map_gtt(buf->bo);
             }
             else
             {
@@ -1362,7 +1378,7 @@ void* MediaLibvaUtilNext::LockBuffer(DDI_MEDIA_BUFFER *buf, uint32_t flag)
                 }
                 else
                 {
-                    mos_gem_bo_map_gtt(buf->bo);
+                    mos_bo_map_gtt(buf->bo);
                 }
              }
 
@@ -1403,7 +1419,7 @@ void MediaLibvaUtilNext::UnlockBuffer(DDI_MEDIA_BUFFER *buf)
         {
              if (buf->pMediaCtx->bIsAtomSOC)
              {
-                 mos_gem_bo_unmap_gtt(buf->bo);
+                 mos_bo_unmap_gtt(buf->bo);
              }
              else
              {
@@ -1413,7 +1429,7 @@ void MediaLibvaUtilNext::UnlockBuffer(DDI_MEDIA_BUFFER *buf)
                  }
                  else
                  {
-                     mos_gem_bo_unmap_gtt(buf->bo);
+                     mos_bo_unmap_gtt(buf->bo);
                  }
             }
             buf->bo->virt = nullptr;
@@ -1645,8 +1661,11 @@ VAStatus MediaLibvaUtilNext::Allocate2DBuffer(
 
     mem_type = MemoryPolicyManager::UpdateMemoryPolicy(&memPolicyPar);
 
+    unsigned int patIndex = MosInterface::GetPATIndexFromGmm(mediaBuffer->pMediaCtx->pGmmClientContext, gmmResourceInfo);
+    bool isCpuCacheable   = gmmResourceInfo->GetResFlags().Info.Cacheable;
+
     MOS_LINUX_BO  *bo;
-    bo = mos_bo_alloc(bufmgr, "Media 2D Buffer", gmmSize, 4096, mem_type);
+    bo = mos_bo_alloc(bufmgr, "Media 2D Buffer", gmmSize, 4096, mem_type, patIndex, isCpuCacheable);
 
     mediaBuffer->bMapped = false;
     if (bo)
@@ -1718,7 +1737,11 @@ VAStatus MediaLibvaUtilNext::AllocateBuffer(
     memPolicyPar.preferredMemType = mediaBuffer->bUseSysGfxMem ? MOS_MEMPOOL_SYSTEMMEMORY : 0;
 
     mem_type = MemoryPolicyManager::UpdateMemoryPolicy(&memPolicyPar);
-    MOS_LINUX_BO *bo  = mos_bo_alloc(bufmgr, "Media Buffer", size, 4096, mem_type);
+
+    unsigned int patIndex = MosInterface::GetPATIndexFromGmm(mediaBuffer->pMediaCtx->pGmmClientContext, mediaBuffer->pGmmResourceInfo);
+    bool isCpuCacheable   = mediaBuffer->pGmmResourceInfo->GetResFlags().Info.Cacheable;
+
+    MOS_LINUX_BO *bo  = mos_bo_alloc(bufmgr, "Media Buffer", size, 4096, mem_type, patIndex, isCpuCacheable);
     mediaBuffer->bMapped = false;
     if (bo)
     {
@@ -1956,7 +1979,7 @@ VAStatus MediaLibvaUtilNext::GetSurfaceModifier(
             if (mediaCtx->m_auxTableMgr && bMmcEnabled)
             {
                 modifier = gmmFlags.Info.MediaCompressed ? I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS :
--                 (gmmFlags.Info.RenderCompressed ? I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS : I915_FORMAT_MOD_Y_TILED);
+                    (gmmFlags.Info.RenderCompressed ? I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS : I915_FORMAT_MOD_Y_TILED);
             }
             else
             {
@@ -1974,7 +1997,7 @@ VAStatus MediaLibvaUtilNext::GetSurfaceModifier(
             if(I915_TILING_Y == mediaSurface->TileType)
             {
                 modifier = gmmFlags.Info.MediaCompressed ? I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS :
--                 (gmmFlags.Info.RenderCompressed ? I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS : I915_FORMAT_MOD_Y_TILED);
+                    (gmmFlags.Info.RenderCompressed ? I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS : I915_FORMAT_MOD_Y_TILED);
             }
             else
             {

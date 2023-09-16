@@ -198,8 +198,8 @@ MOS_STATUS HalCm_AllocateTsResource(
                                          &allocParams,
                                          &state->renderTimeStampResource.osResource));
 
-    // RegisterResource will be called in AddResourceToHWCmd. It is not allowed to be called by hal explicitly for Async mode
-    if (osInterface->pfnIsAsyncDevice(osInterface->osStreamState) == false)
+    // RegisterResource will be called in AddResourceToHWCmd. It is not allowed to be called by hal explicitly
+    if (!osInterface->apoMosEnabled)
     {
         CM_CHK_MOSSTATUS_GOTOFINISH(
             osInterface->pfnRegisterResource(osInterface,
@@ -9354,9 +9354,12 @@ MOS_STATUS HalCm_LockBuffer(
         goto finish;
     }
 
-    CM_CHK_HRESULT_GOTOFINISH_MOSERROR(
-        osInterface->pfnRegisterResource(osInterface, &entry->osResource, true,
-                                         true));
+    // RegisterResource will be called in AddResourceToHWCmd. It is not allowed to be called by hal explicitly
+    if (!osInterface->apoMosEnabled)
+    {
+        CM_CHK_HRESULT_GOTOFINISH_MOSERROR(
+            osInterface->pfnRegisterResource(osInterface, &entry->osResource, true, true));
+    }
 
     // Lock the resource
     MOS_ZeroMemory(&lockFlags, sizeof(MOS_LOCK_PARAMS));
@@ -10504,7 +10507,6 @@ MOS_STATUS HalCm_Create(
         MOS_GPU_CONTEXT_VEBOX,
         MOS_GPU_NODE_VE,
         &createOption));
-    state->osInterface->pfnSetGpuContext(state->osInterface, MOS_GPU_CONTEXT_VEBOX);
 
     // Allocate/Initialize CM Rendering Interface
     state->renderHal = (PRENDERHAL_INTERFACE_LEGACY)
@@ -10536,7 +10538,7 @@ MOS_STATUS HalCm_Create(
 
             // MhwInterfaces always create CP and MI interfaces, so we have to delete those we don't need.
             MOS_Delete(mhwInterfaces->m_miInterface);
-            Delete_MhwCpInterface(mhwInterfaces->m_cpInterface);
+            state->osInterface->pfnDeleteMhwCpInterface(mhwInterfaces->m_cpInterface);
             mhwInterfaces->m_cpInterface = nullptr;
             MOS_Delete(mhwInterfaces);
         }
@@ -10830,8 +10832,15 @@ void HalCm_Destroy(
     {
         //Delete CmHal Interface
         MosSafeDelete(state->cmHalInterface);
-        Delete_MhwCpInterface(state->cpInterface);
-        state->cpInterface = nullptr;
+        if (state->osInterface)
+        {
+            state->osInterface->pfnDeleteMhwCpInterface(state->cpInterface);
+            state->cpInterface = nullptr;
+        }
+        else
+        {
+            CM_ASSERTMESSAGE("Failed to destroy cpInterface.");
+        }
         MosSafeDelete(state->state_buffer_list_ptr);
         MosSafeDelete(state->criticalSectionDSH);
 

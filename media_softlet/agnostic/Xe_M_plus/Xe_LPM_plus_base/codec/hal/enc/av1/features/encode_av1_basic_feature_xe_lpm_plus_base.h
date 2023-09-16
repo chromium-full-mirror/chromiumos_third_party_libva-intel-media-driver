@@ -47,7 +47,7 @@ public:
 
     virtual ~Av1BasicFeatureXe_Lpm_Plus_Base(){};
 
-    MHW_SETPAR_DECL_HDR(VDENC_CMD2);
+    virtual MOS_STATUS Update(void *params) override;
 
     MHW_SETPAR_DECL_HDR(AVP_SURFACE_STATE);
 
