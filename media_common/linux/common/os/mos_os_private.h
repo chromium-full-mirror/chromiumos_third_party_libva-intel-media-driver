@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023, Intel Corporation
+* Copyright (c) 2009-2022, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -20,28 +20,32 @@
 * OTHER DEALINGS IN THE SOFTWARE.
 */
 //!
-//! \file     codechal_event_debug.h
-//! \brief    Defines the event dump interface shared by codec only.
-//! \details  The debug interface dumps output from Media based on in input config file.
+//! \file      mos_os_private.h
+//! \brief     Common interface and structure used in MOS LINUX OS
 //!
-#ifndef __CODEC_EVENT_DEBUG_H__
-#define __CODEC_EVENT_DEBUG_H__
 
-#include "media_debug_interface.h"
+#ifndef __MOS_OS_PRIVATE_H__
+#define __MOS_OS_PRIVATE_H__
 
-#define BITSTREAM_INFO_SIZE 16
+#include "media_skuwa_specific.h"
+#include "GmmLib.h"
+#include "mos_resource_defs.h"
+#include "mos_defs.h"
+#ifdef ANDROID
+#include <utils/Log.h>
+#endif
+#include "i915_drm.h"
+#include "mos_bufmgr.h"
+#include "xf86drm.h"
 
-typedef struct _DECODE_EVENTDATA_BITSTREAM
-{
-    uint32_t BitstreamSize;
-    uint8_t  Data[BITSTREAM_INFO_SIZE];
-} DECODE_EVENTDATA_BITSTREAM;
+#include <vector>
 
-typedef struct _DECODE_EVENTDATA_FRAME
-{
-    uint32_t FrameIdx;
-    uint32_t PicFlags;
-    uint32_t PicEntry;
-} DECODE_EVENTDATA_FRAME;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-#endif /* __CODEC_EVENT_DEBUG_H__ */
+#ifdef __cplusplus
+}
+#endif
+
+#endif // __MOS_OS_PRIVATE_H__

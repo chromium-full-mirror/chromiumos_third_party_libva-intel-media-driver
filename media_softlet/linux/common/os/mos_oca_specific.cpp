@@ -146,7 +146,7 @@ void MosOcaInterfaceSpecific::UnlockPendingOcaBuffers(PMOS_CONTEXT mosCtx, struc
     MosOcaAutoLock lock(m_mutexForOcaBufPool);
     if(m_PendingOcaBuffersToUnlock.size() > 1)
     {
-        MOS_OS_NORMALMESSAGE("size of pending oca buffer > 1");
+        MOS_OS_ASSERTMESSAGE("size of pending oca buffer > 1");
     }
     for (auto it = m_PendingOcaBuffersToUnlock.begin();
         it != m_PendingOcaBuffersToUnlock.end(); ++it)
@@ -596,12 +596,6 @@ void MosOcaInterfaceSpecific::InitOcaLogSection(MOS_LINUX_BO *bo)
 
 void MosOcaInterfaceSpecific::InitLogSection(MOS_OCA_BUFFER_HANDLE ocaBufHandle, PMOS_RESOURCE resCmdBuf)
 {
-    if (resCmdBuf == nullptr ||
-        resCmdBuf->bo == nullptr ||
-        resCmdBuf->bo->virt == nullptr)
-    {
-        return;
-    }
     MOS_LINUX_BO *boCmdBuf = resCmdBuf->bo;
     if (boCmdBuf->size <= OCA_LOG_SECTION_SIZE_MAX)
     {

@@ -73,18 +73,9 @@ void MediaSfcRender::Destroy()
         }
         MOS_FreeMemory(m_renderHal);
     }
-    if (m_cpInterface)
-    {
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
-            m_cpInterface = nullptr;
-        }
-        else
-        {
-            VP_PUBLIC_ASSERTMESSAGE("Failed to destroy cpInterface.");
-        }
-    }
+
+    Delete_MhwCpInterface(m_cpInterface);
+    m_cpInterface = nullptr;
 
     if (m_veboxItf)
     {
@@ -224,7 +215,7 @@ MOS_STATUS MediaSfcRender::Initialize()
 
     // mi interface and cp interface will always be created during MhwInterfaces::CreateFactory.
     // Delete them here since they will also be created by RenderHal_InitInterface.
-    m_osInterface->pfnDeleteMhwCpInterface(mhwInterfacesNext->m_cpInterface);
+    Delete_MhwCpInterface(mhwInterfacesNext->m_cpInterface);
     MOS_Delete(mhwInterfacesNext);
 
     VP_PUBLIC_CHK_NULL_RETURN(m_veboxItf);
@@ -269,7 +260,6 @@ MOS_STATUS MediaSfcRender::Initialize()
     m_vpPlatformInterface->SetMhwVeboxItf(m_veboxItf);
     m_vpPlatformInterface->SetMhwMiItf(m_miItf);
     m_vpMhwinterface->m_vpPlatformInterface = m_vpPlatformInterface;
-    m_vpMhwinterface->m_bIsMediaSfcInterfaceInUse = true;
 
     if (m_mode.veboxSfcEnabled)
     {

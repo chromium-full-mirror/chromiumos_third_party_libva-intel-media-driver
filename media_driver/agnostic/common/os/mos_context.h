@@ -84,12 +84,6 @@ public:
     void CleanUp();
 
     //!
-    //! \brief  Get the adapter info
-    //! \return value of m_adapterInfo
-    //!
-    ADAPTER_INFO *GetAdapterInfo() { return m_pAdapterInfo; };
-
-    //!
     //! \brief  Get the skuTable
     //! \return The active SKU Table
     //!
@@ -155,9 +149,6 @@ public:
 protected:
     //! \brief  Platform string including product family, chipset family, etc
     PLATFORM                        m_platformInfo = {};
-
-    //! \brief  adapter info
-    PADAPTER_INFO                   m_pAdapterInfo = nullptr;
 
     //! \brief  sku table
     MEDIA_FEATURE_TABLE             m_skuTable = {};

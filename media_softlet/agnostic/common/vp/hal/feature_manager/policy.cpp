@@ -282,7 +282,6 @@ MOS_STATUS Policy::CreateHwFilter(SwFilterPipe &subSwFilterPipe, HwFilter *&pFil
 
     HW_FILTER_PARAMS param = {};
 
-    MT_LOG1(MT_VP_FEATURE_GRAPH_SETUPEXECUTESWFILTER_START, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_LAYERINDEXES_COUNT, 1);
     MOS_STATUS status = GetHwFilterParam(subSwFilterPipe, param);
 
     if (MOS_FAILED(status))
@@ -302,7 +301,7 @@ MOS_STATUS Policy::CreateHwFilter(SwFilterPipe &subSwFilterPipe, HwFilter *&pFil
         MT_ERR2(MT_VP_HAL_POLICY, MT_ERROR_CODE, MOS_STATUS_UNIMPLEMENTED, MT_CODE_LINE, __LINE__);
         return MOS_STATUS_UNIMPLEMENTED;
     }
-    MT_LOG1(MT_VP_FEATURE_GRAPH_SETUPEXECUTESWFILTER_END, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_LAYERINDEXES_COUNT, 1);
+
     return MOS_STATUS_SUCCESS;
 }
 
@@ -1051,8 +1050,7 @@ MOS_STATUS Policy::GetCSCExecutionCaps(SwFilter* feature)
     // SFC CSC enabling check
     if (!disableSfc                                                    &&
         m_hwCaps.m_sfcHwEntry[cscParams->formatInput].inputSupported   &&
-        (m_hwCaps.m_sfcHwEntry[cscParams->formatOutput].outputSupported & 
-            VpGetFormatTileSupport(cscParams->output.tileMode))        &&
+        m_hwCaps.m_sfcHwEntry[cscParams->formatOutput].outputSupported &&
         m_hwCaps.m_sfcHwEntry[cscParams->formatInput].cscSupported     &&
         isAlphaSettingSupportedBySfc)
     {
@@ -2239,17 +2237,17 @@ MOS_STATUS Policy::InitExecuteCaps(VP_EXECUTE_CAPS &caps, VP_EngineEntry &engine
             // For vebox/sfc+render case, use 2nd workload (render) to do csc for better performance
             // in most VP common cases, e.g. NV12->RGB, to save the memory bandwidth.
             caps.bForceCscToRender     = true;
-            // Force procamp to render if both enable Lumaykey and procamp on the same layer
-            // Lumaykey should be top-priority
-            if (engineCaps.outputWithLumaKey)
+            // not support procamp to render in fc if input is sRGB
+            // if both enable Lumaykey and procamp on the same layer, Lumaykey should be top-priority
+            if (engineCaps.veboxRGBOutputWithoutLumaKey)
             {
-                caps.bForceProcampToRender = true;
+                caps.bForceProcampToRender = false;
             }
             else
             {
                 // For vebox/sfc+render case, use 2nd workload (render) to do Procamp,
                 // especially for the scenario including Lumakey feature, which will ensure the Procamp can be done after Lumakey.
-                caps.bForceProcampToRender = false;
+                caps.bForceProcampToRender = true;
             }
             // For vebox + render with features, which can be done on both sfc and render, 
             // and sfc is not must have, sfc should not be selected and those features should be done on render.
@@ -2509,16 +2507,22 @@ MOS_STATUS Policy::GetInputPipeEngineCaps(SwFilterPipe& featurePipe, VP_EngineEn
                     engineCapsForVeboxSfc.value |= engineCaps.value;
                     engineCapsForVeboxSfc.nonFcFeatureExists = true;
                     engineCapsForVeboxSfc.nonVeboxFeatureExists |= !engineCaps.VeboxNeeded;
-
-                    SwFilter *lumakey          = featureSubPipe->GetSwFilter(FeatureTypeLumakey);
-                    if (lumakey && lumakey->GetFilterEngineCaps().bEnabled)
+                    if (engineCaps.bt2020ToRGB)
                     {
-                        engineCapsForVeboxSfc.outputWithLumaKey = true;
-                        VP_PUBLIC_NORMALMESSAGE("outputWithLumaKey flag is set.");
+                        bool isLumaKeyEnabled = false;
+                        SwFilter *lumakey = featureSubPipe->GetSwFilter(FeatureTypeLumakey);
+                        if (lumakey && lumakey->GetFilterEngineCaps().bEnabled)
+                        {
+                            isLumaKeyEnabled = true;
+                        }
+                        engineCapsForVeboxSfc.veboxRGBOutputWithoutLumaKey = !isLumaKeyEnabled;
                     }
                     else
                     {
-                        engineCapsForVeboxSfc.outputWithLumaKey = false;
+                        if (!engineCapsForVeboxSfc.veboxRGBOutputWithoutLumaKey)
+                        {
+                            engineCapsForVeboxSfc.veboxRGBOutputWithoutLumaKey = false;
+                        }
                     }
                 }
             }
@@ -2871,11 +2875,6 @@ MOS_STATUS Policy::BuildExecuteFilter(SwFilterPipe& featurePipe, std::vector<int
     }
 
     VP_PUBLIC_CHK_STATUS_RETURN(BuildExecuteHwFilter(caps, params));
-
-    if (params.executedFilters)
-    {
-        params.executedFilters->AddRTLog();
-    }
 
     return MOS_STATUS_SUCCESS;
 }

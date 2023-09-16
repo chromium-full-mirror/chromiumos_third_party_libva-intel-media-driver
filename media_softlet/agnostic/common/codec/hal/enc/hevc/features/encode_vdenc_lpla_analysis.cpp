@@ -471,6 +471,23 @@ namespace encode
             return eStatus;
         }
 
+#if (_SW_BRC)
+        if (m_isLookAheadDllCall)
+        {
+            CodechalVdencHevcLaData *data = (CodechalVdencHevcLaData *)m_allocator->LockResourceForRead(m_vdencLaDataBuffer);
+            ENCODE_CHK_NULL_RETURN(data);
+
+            LookaheadReport *lookaheadStatus     = &encodeStatusMfx->lookaheadStatus;
+            lookaheadStatus->targetFrameSize     = data[m_offset].targetFrameSize;
+            lookaheadStatus->targetBufferFulness = data[m_offset].targetBufferFulness;
+            lookaheadStatus->encodeHints         = data[m_offset].encodeHints;
+            lookaheadStatus->pyramidDeltaQP      = data[m_offset].pyramidDeltaQP;
+            lookaheadStatus->miniGopSize         = data[m_offset].miniGopSize;
+            
+            m_allocator->UnLock(m_vdencLaDataBuffer);
+        }
+#endif
+
         if (m_lookaheadReport && (encodeStatusMfx->lookaheadStatus.targetFrameSize > 0))
         {
             statusReportData->pLookaheadStatus = &encodeStatusMfx->lookaheadStatus;
@@ -479,6 +496,32 @@ namespace encode
             encodeStatusMfx->lookaheadStatus.targetFrameSize = (uint32_t)((targetFrameSize + (32 * 8)) / (64 * 8));  // Convert bits to bytes. 64 is normalized average frame size used in lookahead analysis kernel
             uint64_t targetBufferFulness = (uint64_t)encodeStatusMfx->lookaheadStatus.targetBufferFulness * m_averageFrameSize;
             encodeStatusMfx->lookaheadStatus.targetBufferFulness = (uint32_t)((targetBufferFulness + 32) / 64);  // 64 is normalized average frame size used in lookahead analysis kernel
+            // Apply rounding error to targetFrameSize to align target buffer fullness between lookahead pass and encode pass
+            if (m_prevTargetFrameSize > 0)
+            {
+                int64_t encTargetBufferFulness = (int64_t)m_targetBufferFulness;
+                encTargetBufferFulness += (int64_t)(m_prevTargetFrameSize << 3) - (int64_t)m_averageFrameSize;
+                m_targetBufferFulness = encTargetBufferFulness < 0 ? 0 : (encTargetBufferFulness > 0xFFFFFFFF ? 0xFFFFFFFF : (uint32_t)encTargetBufferFulness);
+                int32_t deltaBits     = (int32_t)((int64_t)(encodeStatusMfx->lookaheadStatus.targetBufferFulness) + m_bufferFulnessError - (int64_t)(m_targetBufferFulness));
+                deltaBits /= 64;
+                if (deltaBits > 8)
+                {
+                    if ((uint32_t)deltaBits > encodeStatusMfx->lookaheadStatus.targetFrameSize)
+                    {
+                        deltaBits = (int32_t)(encodeStatusMfx->lookaheadStatus.targetFrameSize);
+                    }
+                    encodeStatusMfx->lookaheadStatus.targetFrameSize += (uint32_t)(deltaBits >> 3);
+                }
+                else if (deltaBits < -8)
+                {
+                    if ((-deltaBits) > (int32_t)(encodeStatusMfx->lookaheadStatus.targetFrameSize))
+                    {
+                        deltaBits = -(int32_t)(encodeStatusMfx->lookaheadStatus.targetFrameSize);
+                    }
+                    encodeStatusMfx->lookaheadStatus.targetFrameSize -= (uint32_t)((-deltaBits) >> 3);
+                }
+            }
+            m_prevTargetFrameSize = encodeStatusMfx->lookaheadStatus.targetFrameSize;
 
             if (encodeStatusMfx->lookaheadStatus.miniGopSize == 2)
             {
@@ -723,36 +766,43 @@ namespace encode
         return eStatus;
     }
 
-    MOS_STATUS VdencLplaAnalysis::ReadLPLAData(PMOS_COMMAND_BUFFER cmdBuffer, PMOS_RESOURCE resource, uint32_t baseOffset)
+    MOS_STATUS VdencLplaAnalysis::ReadLPLAData(PMOS_COMMAND_BUFFER cmdBuffer, PMOS_RESOURCE resource, uint32_t baseOffset, bool hucStsUpdNeeded)
     {
         ENCODE_FUNC_CALL();
 
-        // Write lookahead status to encode status buffer
-        auto &miCpyMemMemParams = m_miItf->MHW_GETPAR_F(MI_COPY_MEM_MEM)();
-        auto &flushDwParams     = m_miItf->MHW_GETPAR_F(MI_FLUSH_DW)();
+#if _SW_BRC
+        m_isLookAheadDllCall = hucStsUpdNeeded;
+#endif
 
-        miCpyMemMemParams             = {};
-        miCpyMemMemParams.presSrc     = m_vdencLaDataBuffer;
-        miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, encodeHints);
-        miCpyMemMemParams.presDst     = resource;
-        miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, encodeHints);
-        ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
-        miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, targetFrameSize);
-        miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, targetFrameSize);
-        ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
-        miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, targetBufferFulness);
-        miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, targetBufferFulness);
-        ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
-        miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, pyramidDeltaQP);
-        miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, pyramidDeltaQP);
-        ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
-        //MI_COPY_MEM_MEM reads a DWord from memory and stores it to memory. This copy will include adaptive_rounding and minigop
-        miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, adaptive_rounding);
-        miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, adaptive_rounding);
-        ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
+        if (!hucStsUpdNeeded)
+        {
+            // Write lookahead status to encode status buffer
+            auto &miCpyMemMemParams       = m_miItf->MHW_GETPAR_F(MI_COPY_MEM_MEM)();
+            auto &flushDwParams           = m_miItf->MHW_GETPAR_F(MI_FLUSH_DW)();
 
-        flushDwParams = {};
-        ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_FLUSH_DW)(cmdBuffer));
+            miCpyMemMemParams             = {};
+            miCpyMemMemParams.presSrc     = m_vdencLaDataBuffer;
+            miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, encodeHints);
+            miCpyMemMemParams.presDst     = resource;
+            miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, encodeHints);
+            ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
+            miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, targetFrameSize);
+            miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, targetFrameSize);
+            ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
+            miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, targetBufferFulness);
+            miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, targetBufferFulness);
+            ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
+            miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, pyramidDeltaQP);
+            miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, pyramidDeltaQP);
+            ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
+            //MI_COPY_MEM_MEM reads a DWord from memory and stores it to memory. This copy will include adaptive_rounding and minigop
+            miCpyMemMemParams.dwSrcOffset = m_offset * sizeof(CodechalVdencHevcLaData) + CODECHAL_OFFSETOF(CodechalVdencHevcLaData, adaptive_rounding);
+            miCpyMemMemParams.dwDstOffset = baseOffset + CODECHAL_OFFSETOF(LookaheadReport, adaptive_rounding);
+            ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_COPY_MEM_MEM)(cmdBuffer));
+
+            flushDwParams = {};
+            ENCODE_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_FLUSH_DW)(cmdBuffer));
+        }
 
         return MOS_STATUS_SUCCESS;
     }

@@ -1379,7 +1379,6 @@ void DdiMediaDecode::ReportDecodeMode(
         default:
             break;
     }
-
 #if MOS_EVENT_TRACE_DUMP_SUPPORTED
     {
         DECODE_EVENTDATA_VA_FEATURE_REPORTMODE eventData;

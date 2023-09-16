@@ -3944,7 +3944,7 @@ bool VPHAL_VEBOX_STATE::VeboxIs2PassesCSCNeeded(
             (pRenderTarget->ColorSpace == CSpace_stRGB)           ||
             (pRenderTarget->ColorSpace == CSpace_sRGB))
         {
-            b2PassesCSCNeeded = (pRenderData->bHdr3DLut || pSrc->p3DLutParams) ? false : true;
+            b2PassesCSCNeeded = (pRenderData->bHdr3DLut || pSrc->p3DLutParams || pSrc->pHDRParams) ? false : true;
         }
     }
 
@@ -4289,7 +4289,7 @@ MOS_STATUS VpHal_VeboxAllocateTempSurfaces(
     surfaceFormat       = pOutSurface->Format;
     surfaceColorSpace   = pOutSurface->ColorSpace;
 
-    if (IS_YUV_FORMAT(pOutSurface->Format) || IS_ALPHA_YUV_FORMAT(pOutSurface->Format))
+    if (IS_YUV_FORMAT(pOutSurface->Format))
     {
         surfaceFormat       = Format_R10G10B10A2;
         surfaceColorSpace   = (IS_COLOR_SPACE_BT2020(pOutSurface->ColorSpace)) ? CSpace_BT2020_RGB : CSpace_sRGB;

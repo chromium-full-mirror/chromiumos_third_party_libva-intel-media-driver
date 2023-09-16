@@ -4793,6 +4793,9 @@ public:
             };
             uint32_t Value;
         } DW6;
+        uint32_t Mpeg2InlineData[6];  //!< MPEG2 Inline Data
+        uint32_t AvcInlineData[7];    //!< AVC Inline Data
+        uint32_t Vc1InlineData[11];   //!< VC1 Inline Data
 
         //! \name Local enumerations
 
@@ -4874,8 +4877,8 @@ public:
         //! \brief Explicit member initialization function
         MFD_IT_OBJECT_CMD();
 
-        static const size_t dwSize = 7;
-        static const size_t byteSize = 28;
+        static const size_t dwSize   = 18;
+        static const size_t byteSize = 72;
     };
 
     //!

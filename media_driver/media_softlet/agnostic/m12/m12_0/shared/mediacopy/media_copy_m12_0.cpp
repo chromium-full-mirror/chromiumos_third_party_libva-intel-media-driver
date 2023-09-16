@@ -77,15 +77,8 @@ MediaCopyStateM12_0::~MediaCopyStateM12_0()
     {
         if (m_mhwInterfaces->m_cpInterface)
         {
-            if (m_osInterface)
-            {
-                m_osInterface->pfnDeleteMhwCpInterface(m_mhwInterfaces->m_cpInterface);
-                m_mhwInterfaces->m_cpInterface = nullptr;
-            }
-            else
-            {
-                MCPY_ASSERTMESSAGE("Failed to destroy cpInterface.");
-            }
+            Delete_MhwCpInterface(m_mhwInterfaces->m_cpInterface);
+            m_mhwInterfaces->m_cpInterface = nullptr;
         }
         MOS_Delete(m_mhwInterfaces->m_miInterface);
         MOS_Delete(m_mhwInterfaces->m_veboxInterface);

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023, Intel Corporation
+* Copyright (c) 2018, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -37,11 +37,13 @@ namespace encode
 {
 HevcBasicFeature::~HevcBasicFeature()
 {
-    if (m_422State)
+#ifdef _ENCODE_RESERVED
+    if (m_rsvdState)
     {
-        MOS_Delete(m_422State);
-        m_422State = nullptr;
+        MOS_Delete(m_rsvdState);
+        m_rsvdState = nullptr;
     }
+#endif
 }
 
 MOS_STATUS HevcBasicFeature::Init(void *setting)
@@ -107,7 +109,9 @@ MOS_STATUS HevcBasicFeature::Init(void *setting)
 #endif  // _DEBUG || _RELEASE_INTERNAL
     m_hevcRDOQPerfDisabled = outValue.Get<bool>();
 
-    ENCODE_CHK_STATUS_RETURN(Init422State());
+#ifdef _ENCODE_RESERVED
+    ENCODE_CHK_STATUS_RETURN(InitRsvdState());
+#endif
 
     return MOS_STATUS_SUCCESS;
 }
@@ -134,11 +138,12 @@ MOS_STATUS HevcBasicFeature::Update(void *params)
     m_NumNalUnits   = encodeParams->uiNumNalUnits;
     m_bEnableSubPelMode = encodeParams->bEnableSubPelMode;
     m_SubPelMode        = encodeParams->SubPelMode;
-
-    if (m_422State && m_422State->GetFeature422Flag())
+#ifdef _ENCODE_RESERVED
+    if (m_rsvdState && m_rsvdState->GetFeatureRsvdFlag())
     {
-        ENCODE_CHK_STATUS_RETURN(m_422State->Update422Format(m_hevcSeqParams, m_outputChromaFormat, m_reconSurface.Format, m_is10Bit));
+        ENCODE_CHK_STATUS_RETURN(m_rsvdState->UpdateRsvdFormat(m_hevcSeqParams, m_outputChromaFormat, m_reconSurface.Format, m_is10Bit));
     }
+#endif
 
     if (encodeParams->bAcceleratorHeaderPackingCaps)
     {
@@ -252,122 +257,6 @@ MOS_STATUS HevcBasicFeature::CalcLCUMaxCodingSize()
     return MOS_STATUS_SUCCESS;
 }
 
-void HevcBasicFeature::CreateFlatScalingList()
-{
-    ENCODE_FUNC_CALL();
-
-    for (auto i = 0; i < 6; i++)
-    {
-        memset(&(m_hevcIqMatrixParams->ucScalingLists0[i][0]),
-            0x10,
-            sizeof(m_hevcIqMatrixParams->ucScalingLists0[i]));
-
-        memset(&(m_hevcIqMatrixParams->ucScalingLists1[i][0]),
-            0x10,
-            sizeof(m_hevcIqMatrixParams->ucScalingLists1[i]));
-
-        memset(&(m_hevcIqMatrixParams->ucScalingLists2[i][0]),
-            0x10,
-            sizeof(m_hevcIqMatrixParams->ucScalingLists2[i]));
-    }
-
-    memset(&(m_hevcIqMatrixParams->ucScalingLists3[0][0]),
-        0x10,
-        sizeof(m_hevcIqMatrixParams->ucScalingLists3[0]));
-
-    memset(&(m_hevcIqMatrixParams->ucScalingLists3[1][0]),
-        0x10,
-        sizeof(m_hevcIqMatrixParams->ucScalingLists3[1]));
-
-    memset(&(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID2[0]),
-        0x10,
-        sizeof(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID2));
-
-    memset(&(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID3[0]),
-        0x10,
-        sizeof(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID3));
-}
-
-void HevcBasicFeature::CreateDefaultScalingList()
-{
-    ENCODE_FUNC_CALL();
-
-    const uint8_t flatScalingList4x4[16] =
-    {
-        16,16,16,16,
-        16,16,16,16,
-        16,16,16,16,
-        16,16,16,16
-    };
-
-    const uint8_t defaultScalingList8x8[2][64] =
-    {
-        {
-            16,16,16,16,17,18,21,24,
-            16,16,16,16,17,19,22,25,
-            16,16,17,18,20,22,25,29,
-            16,16,18,21,24,27,31,36,
-            17,17,20,24,30,35,41,47,
-            18,19,22,27,35,44,54,65,
-            21,22,25,31,41,54,70,88,
-            24,25,29,36,47,65,88,115
-        },
-        {
-            16,16,16,16,17,18,20,24,
-            16,16,16,17,18,20,24,25,
-            16,16,17,18,20,24,25,28,
-            16,17,18,20,24,25,28,33,
-            17,18,20,24,25,28,33,41,
-            18,20,24,25,28,33,41,54,
-            20,24,25,28,33,41,54,71,
-            24,25,28,33,41,54,71,91
-        }
-    };
-
-    for (auto i = 0; i < 6; i++)
-    {
-        memcpy(&(m_hevcIqMatrixParams->ucScalingLists0[i][0]),
-            flatScalingList4x4,
-            sizeof(m_hevcIqMatrixParams->ucScalingLists0[i]));
-    }
-
-    for (auto i = 0; i < 3; i++)
-    {
-        memcpy(&(m_hevcIqMatrixParams->ucScalingLists1[i][0]),
-            defaultScalingList8x8[0],
-            sizeof(m_hevcIqMatrixParams->ucScalingLists1[i]));
-
-        memcpy(&(m_hevcIqMatrixParams->ucScalingLists1[3 + i][0]),
-            defaultScalingList8x8[1],
-            sizeof(m_hevcIqMatrixParams->ucScalingLists1[3 + i]));
-
-        memcpy(&(m_hevcIqMatrixParams->ucScalingLists2[i][0]),
-            defaultScalingList8x8[0],
-            sizeof(m_hevcIqMatrixParams->ucScalingLists2[i]));
-
-        memcpy(&(m_hevcIqMatrixParams->ucScalingLists2[3 + i][0]),
-            defaultScalingList8x8[1],
-            sizeof(m_hevcIqMatrixParams->ucScalingLists2[3 + i]));
-    }
-
-    memcpy(&(m_hevcIqMatrixParams->ucScalingLists3[0][0]),
-        defaultScalingList8x8[0],
-        sizeof(m_hevcIqMatrixParams->ucScalingLists3[0]));
-
-    memcpy(&(m_hevcIqMatrixParams->ucScalingLists3[1][0]),
-        defaultScalingList8x8[1],
-        sizeof(m_hevcIqMatrixParams->ucScalingLists3[1]));
-
-    memset(&(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID2[0]),
-        0x10,
-        sizeof(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID2));
-
-    memset(&(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID3[0]),
-        0x10,
-        sizeof(m_hevcIqMatrixParams->ucScalingListDCCoefSizeID3));
-}
-
-
 MOS_STATUS HevcBasicFeature::SetPictureStructs()
 {
     MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
@@ -394,13 +283,12 @@ MOS_STATUS HevcBasicFeature::SetPictureStructs()
         return MOS_STATUS_INVALID_PARAMETER;
     }
 
-    if (m_hevcSeqParams->scaling_list_enable_flag && !m_hevcPicParams->scaling_list_data_present_flag)
+    if (!m_hevcSeqParams->scaling_list_enable_flag)
     {
-        CreateDefaultScalingList();
-    }
-    else if (!m_hevcSeqParams->scaling_list_enable_flag)
-    {
-        CreateFlatScalingList();
+        //Create flat scaling list
+        memset(m_hevcIqMatrixParams,
+            0x10,
+            sizeof(*m_hevcIqMatrixParams));
     }
 
     ENCODE_CHK_STATUS_RETURN(CalcLCUMaxCodingSize());
@@ -468,10 +356,12 @@ MOS_STATUS HevcBasicFeature::UpdateTrackedBufferParameters()
         ENCODE_CHK_STATUS_RETURN(m_trackedBuf->RegisterParam(encode::BufferType::mvTemporalBuffer, allocParams));
     }
 
-    if (m_422State && m_422State->GetFeature422Flag())
+#ifdef _ENCODE_RESERVED
+    if (m_rsvdState && m_rsvdState->GetFeatureRsvdFlag())
     {
-        ENCODE_CHK_STATUS_RETURN(m_422State->RegisterMbCodeBuffer(m_trackedBuf, m_isMbCodeRegistered, m_mbCodeSize));
+        ENCODE_CHK_STATUS_RETURN(m_rsvdState->RegisterMbCodeBuffer(m_trackedBuf, m_isMbCodeRegistered, m_mbCodeSize));
     }
+#endif
 
     ENCODE_CHK_STATUS_RETURN(EncodeBasicFeature::UpdateTrackedBufferParameters());
 
@@ -761,15 +651,17 @@ MOS_STATUS HevcBasicFeature::SetRoundingValues()
     return eStatus;
 }
 
-MOS_STATUS HevcBasicFeature::Init422State()
+#ifdef _ENCODE_RESERVED
+MOS_STATUS HevcBasicFeature::InitRsvdState()
 {
     ENCODE_FUNC_CALL();
 
-    m_422State = MOS_New(HevcBasicFeature422);
-    ENCODE_CHK_NULL_RETURN(m_422State);
+    m_rsvdState = MOS_New(HevcBasicFeatureRsvd);
+    ENCODE_CHK_NULL_RETURN(m_rsvdState);
 
     return MOS_STATUS_SUCCESS;
 }
+#endif
 
 MOS_STATUS HevcBasicFeature::GetSurfaceMmcInfo(PMOS_SURFACE surface, MOS_MEMCOMP_STATE &mmcState, uint32_t &compressionFormat) const
 {

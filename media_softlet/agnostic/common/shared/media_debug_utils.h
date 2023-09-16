@@ -41,6 +41,8 @@ static const char *attrDumpBufferInBinary    = "DumpBufferInBinary";
 static const char *attrDumpToThreadFolder    = "DumpToThreadFolder";
 static const char *attrDumpCmdBufInBinary    = "DumpCmdBufInBinary";
 static const char *attrEnableFastDump        = "EnableFastDump";
+static const char *attrFastDumpAllowDataLoss = "FastDumpAllowDataLoss";
+static const char *attrFastDumpInformOnError = "FastDumpInformOnError";
 
 //Codec Attr 
 static const char *attrPicParams               = "PicParams";
@@ -68,7 +70,6 @@ static const char *attrHuCDmem                 = "HucDmem";
 static const char *attrCmdBufferMfx            = "CmdBufferMfx";
 static const char *attr2ndLvlBatchMfx          = "2ndLvlBatchMfx";
 static const char *attrSurfaceInfo             = "SurfaceInfo";
-static const char *attrDelayForDumpOutput      = "DelayForDumpOutput";
 static const char *attrDecodeOutputSurface     = "DecodeOutputSurface";
 static const char *attrDecodeCompSurface       = "DumpCompressedSurface";
 static const char *attrDecodeAuxSurface        = "DumpAuxsurface";

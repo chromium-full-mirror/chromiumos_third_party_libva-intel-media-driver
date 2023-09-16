@@ -1181,12 +1181,12 @@ void Linux_Destroy(
 
     if (!MODSEnabled && (pOsContext->intel_context))
     {
-        if (pOsContext->intel_context->vm_id != INVALID_VM)
+        if (pOsContext->intel_context->vm)
         {
-            mos_vm_destroy(pOsContext->intel_context->bufmgr,pOsContext->intel_context->vm_id);
-            pOsContext->intel_context->vm_id = INVALID_VM;
+            mos_gem_vm_destroy(pOsContext->intel_context->bufmgr,pOsContext->intel_context->vm);
+            pOsContext->intel_context->vm = nullptr;
         }
-        mos_context_destroy(pOsContext->intel_context);
+        mos_gem_context_destroy(pOsContext->intel_context);
     }
 
     MOS_Delete(pOsContext);
@@ -1342,14 +1342,14 @@ MOS_STATUS Linux_InitContext(
     pContext->m_auxTableMgr   = pOsDriverContext->m_auxTableMgr;
     pContext->m_userSettingPtr = pOsDriverContext->m_userSettingPtr;
 
-    mos_bufmgr_enable_reuse(pOsDriverContext->bufmgr);
+    mos_bufmgr_gem_enable_reuse(pOsDriverContext->bufmgr);
 
     // DDI layer can pass over the DeviceID.
     iDeviceId = pOsDriverContext->iDeviceId;
     if (0 == iDeviceId)
     {
         //Such as CP, it calls InitMosInterface() dretly without creating MediaContext.
-        iDeviceId = mos_bufmgr_get_devid(pOsDriverContext->bufmgr);
+        iDeviceId = mos_bufmgr_gem_get_devid(pOsDriverContext->bufmgr);
         pOsDriverContext->iDeviceId = iDeviceId;
 
         MOS_OS_CHK_STATUS_MESSAGE(
@@ -1378,11 +1378,11 @@ MOS_STATUS Linux_InitContext(
     // when MODS enabled, intel_context will be created by pOsContextSpecific, should not recreate it here, or will cause memory leak.
     if (!MODSEnabled)
     {
-       pContext->intel_context = mos_context_create_ext(pOsDriverContext->bufmgr, 0, pOsDriverContext->m_protectedGEMContext);
+       pContext->intel_context = mos_gem_context_create_ext(pOsDriverContext->bufmgr, 0, pOsDriverContext->m_protectedGEMContext);
        if (!Mos_Solo_IsEnabled(nullptr) && pContext->intel_context)
        {
-           pContext->intel_context->vm_id = mos_vm_create(pOsDriverContext->bufmgr);
-           if (pContext->intel_context->vm_id == INVALID_VM)
+           pContext->intel_context->vm = mos_gem_vm_create(pOsDriverContext->bufmgr);
+           if (pContext->intel_context->vm == nullptr)
            {
                MOS_OS_ASSERTMESSAGE("Failed to create vm.\n");
                return MOS_STATUS_UNKNOWN;
@@ -1390,10 +1390,10 @@ MOS_STATUS Linux_InitContext(
        }
        else //try legacy context create ioctl if DRM_IOCTL_I915_GEM_CONTEXT_CREATE_EXT is not supported
        {
-           pContext->intel_context = mos_context_create(pOsDriverContext->bufmgr);
+           pContext->intel_context = mos_gem_context_create(pOsDriverContext->bufmgr);
            if (pContext->intel_context)
            {
-               pContext->intel_context->vm_id = INVALID_VM;
+               pContext->intel_context->vm = nullptr;
            }
        }
 
@@ -1480,7 +1480,28 @@ MOS_STATUS Linux_InitContext(
 
 #ifndef ANDROID
     {
-        pContext->bKMDHasVCS2 = mos_has_bsd2(pContext->bufmgr);
+        drm_i915_getparam_t gp;
+        int32_t             ret   = -1;
+        int32_t             value = 0;
+
+        //KMD support VCS2?
+        gp.value = &value;
+        gp.param = I915_PARAM_HAS_BSD2;
+        if (pContext->fd < 0)
+        {
+            MOS_OS_ASSERTMESSAGE("pContext->fd is not valid.");
+            eStatus = MOS_STATUS_INVALID_PARAMETER;
+            goto finish;
+        }
+        ret = drmIoctl(pContext->fd, DRM_IOCTL_I915_GETPARAM, &gp);
+        if (ret == 0 && value != 0)
+        {
+            pContext->bKMDHasVCS2 = true;
+        }
+        else
+        {
+            pContext->bKMDHasVCS2 = false;
+        }
     }
     if (pContext->bKMDHasVCS2)
     {
@@ -1881,12 +1902,12 @@ MOS_STATUS Mos_DestroyInterface(PMOS_INTERFACE pOsInterface)
         }
         if (perStreamParameters->intel_context)
         {
-            if (perStreamParameters->intel_context->vm_id != INVALID_VM)
+            if (perStreamParameters->intel_context->vm)
             {
-                mos_vm_destroy(perStreamParameters->intel_context->bufmgr, perStreamParameters->intel_context->vm_id);
-                perStreamParameters->intel_context->vm_id = INVALID_VM;
+                mos_gem_vm_destroy(perStreamParameters->intel_context->bufmgr, perStreamParameters->intel_context->vm);
+                perStreamParameters->intel_context->vm = nullptr;
             }
-            mos_context_destroy(perStreamParameters->intel_context);
+            mos_gem_context_destroy(perStreamParameters->intel_context);
             perStreamParameters->intel_context = nullptr;
         }
         MOS_Delete(perStreamParameters);
@@ -2321,7 +2342,7 @@ MOS_STATUS Mos_Specific_AllocateResource(
     }
 
     caller              = nullptr;
-    tileformat_linux    = TILING_NONE;
+    tileformat_linux    = I915_TILING_NONE;
     iAlignedHeight      = iHeight = pParams->dwHeight;
     eStatus             = MOS_STATUS_SUCCESS;
     resourceType        = RESOURCE_2D;
@@ -2410,7 +2431,7 @@ MOS_STATUS Mos_Specific_AllocateResource(
     switch(tileformat)
     {
         case MOS_TILE_Y:
-            tileformat_linux               = TILING_Y;
+            tileformat_linux               = I915_TILING_Y;
             if (pParams->bIsCompressible                                             && 
                 MEDIA_IS_SKU(&pOsInterface->pOsContext->m_skuTable, FtrE2ECompression) &&
                 MEDIA_IS_SKU(&pOsInterface->pOsContext->m_skuTable, FtrCompressibleSurfaceDefault))
@@ -2440,11 +2461,11 @@ MOS_STATUS Mos_Specific_AllocateResource(
             break;
         case MOS_TILE_X:
             GmmParams.Flags.Info.TiledX    = true;
-            tileformat_linux               = TILING_X;
+            tileformat_linux               = I915_TILING_X;
             break;
         default:
             GmmParams.Flags.Info.Linear    = true;
-            tileformat_linux               = TILING_NONE;
+            tileformat_linux               = I915_TILING_NONE;
     }
     GmmParams.Flags.Info.LocalOnly = MEDIA_IS_SKU(&pOsInterface->pOsContext->m_skuTable, FtrLocalMemory);
 
@@ -2456,19 +2477,19 @@ MOS_STATUS Mos_Specific_AllocateResource(
     {
         case GMM_TILED_X:
             tileformat = MOS_TILE_X;
-            tileformat_linux               = TILING_X;
+            tileformat_linux               = I915_TILING_X;
             break;
         case GMM_TILED_Y:
             tileformat = MOS_TILE_Y;
-            tileformat_linux               = TILING_Y;
+            tileformat_linux               = I915_TILING_Y;
             break;
         case GMM_NOT_TILED:
             tileformat = MOS_TILE_LINEAR;
-            tileformat_linux               = TILING_NONE;
+            tileformat_linux               = I915_TILING_NONE;
             break;
         default:
             tileformat = MOS_TILE_Y;
-            tileformat_linux               = TILING_Y;
+            tileformat_linux               = I915_TILING_Y;
             break;
     }
 
@@ -2493,7 +2514,7 @@ MOS_STATUS Mos_Specific_AllocateResource(
     mem_type = MemoryPolicyManager::UpdateMemoryPolicy(&memPolicyPar);
 
     // Only Linear and Y TILE supported
-    if( tileformat_linux == TILING_NONE )
+    if( tileformat_linux == I915_TILING_NONE )
     {
         bo = mos_bo_alloc(pOsInterface->pOsContext->bufmgr, bufname, iSize, 4096, mem_type);
     }
@@ -2988,7 +3009,7 @@ void  *Mos_Specific_LockResource(
         {
             if (pContext->bIsAtomSOC)
             {
-                mos_bo_map_gtt(bo);
+                mos_gem_bo_map_gtt(bo);
             }
             else
             {
@@ -3014,13 +3035,13 @@ void  *Mos_Specific_LockResource(
                     }
                     else
                     {
-                        mos_bo_map_gtt(bo);
+                        mos_gem_bo_map_gtt(bo);
                         pOsResource->MmapOperation = MOS_MMAP_OPERATION_MMAP_GTT;
                     }
                 }
                 else if (pLockFlags->Uncached)
                 {
-                    mos_bo_map_wc(bo);
+                    mos_gem_bo_map_wc(bo);
                     pOsResource->MmapOperation = MOS_MMAP_OPERATION_MMAP_WC;
                 }
                 else
@@ -3113,7 +3134,7 @@ MOS_STATUS Mos_Specific_UnlockResource(
         {
            if (pContext->bIsAtomSOC)
            {
-               mos_bo_unmap_gtt(pOsResource->bo);
+               mos_gem_bo_unmap_gtt(pOsResource->bo);
            }
            else
            {
@@ -3129,10 +3150,10 @@ MOS_STATUS Mos_Specific_UnlockResource(
                switch(pOsResource->MmapOperation)
                {
                    case MOS_MMAP_OPERATION_MMAP_GTT:
-                        mos_bo_unmap_gtt(pOsResource->bo);
+                        mos_gem_bo_unmap_gtt(pOsResource->bo);
                         break;
                    case MOS_MMAP_OPERATION_MMAP_WC:
-                        mos_bo_unmap_wc(pOsResource->bo);
+                        mos_gem_bo_unmap_wc(pOsResource->bo);
                         break;
                    case MOS_MMAP_OPERATION_MMAP:
                         mos_bo_unmap(pOsResource->bo);
@@ -4264,29 +4285,11 @@ uint64_t Mos_Specific_GetResourceGfxAddress(
         return MosInterface::GetResourceGfxAddress(pOsInterface->osStreamState, pResource);
     }
 
-    if (!mos_bo_is_softpin(pResource->bo))
+    if (!mos_gem_bo_is_softpin(pResource->bo))
     {
         mos_bo_set_softpin(pResource->bo);
     }
     return pResource->bo->offset64;
-}
-
-//!
-//! \brief    Get Clear Color Address
-//! \details  The clear color address
-//! \param    PMOS_INTERFACE pOsInterface
-//!           [in] OS Interface
-//! \param    PMOS_RESOURCE pResource
-//!           [in] OS resource structure
-//! \return   uint64_t
-//!           The clear color address
-//!
-uint64_t Mos_Specific_GetResourceClearAddress(
-    PMOS_INTERFACE pOsInterface,
-    PMOS_RESOURCE  pResource)
-{
-    uint64_t ui64ClearColorAddress = 0;
-    return ui64ClearColorAddress;
 }
 
 //!
@@ -4433,10 +4436,10 @@ MOS_STATUS Mos_Specific_CreateGpuContext(
                 return MOS_STATUS_UNKNOWN;
             };
 
-            if (mos_hweight8(pOsInterface->pOsContext->intel_context, sseu.subslice_mask) > createOption->packed.SubSliceCount)
+            if (mos_hweight8(sseu.subslice_mask) > createOption->packed.SubSliceCount)
             {
-                sseu.subslice_mask = mos_switch_off_n_bits(pOsInterface->pOsContext->intel_context, sseu.subslice_mask,
-                        mos_hweight8(pOsInterface->pOsContext->intel_context, sseu.subslice_mask)-createOption->packed.SubSliceCount);
+                sseu.subslice_mask = mos_switch_off_n_bits(sseu.subslice_mask,
+                        mos_hweight8(sseu.subslice_mask)-createOption->packed.SubSliceCount);
             }
 
             if (mos_set_context_param_sseu(pOsInterface->pOsContext->intel_context, sseu))
@@ -4449,7 +4452,6 @@ MOS_STATUS Mos_Specific_CreateGpuContext(
         createOption->gpuNode = GpuNode;
         if (pOsInterface->apoMosEnabled)
         {
-            MOS_OS_CHK_NULL_RETURN(pOsInterface->osStreamState);
             // Update ctxBasedScheduling from legacy OsInterface
             pOsInterface->osStreamState->ctxBasedScheduling = pOsInterface->ctxBasedScheduling;
             if (pOsContextSpecific->GetGpuContextHandle(mosGpuCxt) == MOS_GPU_CONTEXT_INVALID_HANDLE)
@@ -6828,7 +6830,7 @@ static MOS_STATUS Mos_Specific_InitInterface_Ve(
         MOS_OS_CHK_NULL_RETURN(skuTable);
         if (MEDIA_IS_SKU(skuTable, FtrGucSubmission))
         {
-            osInterface->bParallelSubmission = true;
+            osInterface->bGucSubmission = true;
         }
 
         //Read Scalable/Legacy Decode mode on Gen11+
@@ -6863,7 +6865,7 @@ static MOS_STATUS Mos_Specific_InitInterface_Ve(
             regValue,
             __MEDIA_USER_FEATURE_VALUE_ENABLE_GUC_SUBMISSION,
             MediaUserSetting::Group::Device);
-        osInterface->bParallelSubmission = osInterface->bParallelSubmission && regValue;
+        osInterface->bGucSubmission = osInterface->bGucSubmission && regValue;
 
         // read the "Force VEBOX" user feature key
         // 0: not force
@@ -6941,28 +6943,6 @@ bool Mos_Specific_pfnIsMultipleCodecDevicesInUse(
     return false;
 }
 
-MOS_STATUS Mos_Specific_pfnSetMultiEngineEnabled(
-    PMOS_INTERFACE pOsInterface,
-    MOS_COMPONENT  component,
-    bool           enabled)
-{
-    MOS_OS_FUNCTION_ENTER;
-
-    return MOS_STATUS_SUCCESS;
-}
-
-MOS_STATUS Mos_Specific_pfnGetMultiEngineStatus(
-    PMOS_INTERFACE pOsInterface,
-    PLATFORM      *platform,
-    MOS_COMPONENT  component,
-    bool          &isMultiDevices,
-    bool          &isMultiEngine)
-{
-    MOS_OS_FUNCTION_ENTER;
-
-    return MOS_STATUS_SUCCESS;
-}
-
 MOS_GPU_NODE Mos_Specific_pfnGetLatestVirtualNode(
     PMOS_INTERFACE pOsInterface,
     MOS_COMPONENT  component)
@@ -6992,11 +6972,6 @@ void Mos_Specific_pfnSetDecoderVirtualNodePerStream(
     MOS_GPU_NODE   node)
 {
     MOS_OS_FUNCTION_ENTER;
-}
-
-bool Mos_Specific_IsAsyncDevice(PMOS_INTERFACE pOsInterface)
-{
-    return false;
 }
 
 //! \brief    Unified OS Initializes OS Linux Interface
@@ -7065,7 +7040,6 @@ MOS_STATUS Mos_Specific_InitInterface(
     pOsInterface->pfnResetResourceAllocationIndex           = Mos_Specific_ResetResourceAllocationIndex;
     pOsInterface->pfnGetResourceAllocationIndex             = Mos_Specific_GetResourceAllocationIndex;
     pOsInterface->pfnGetResourceGfxAddress                  = Mos_Specific_GetResourceGfxAddress;
-    pOsInterface->pfnGetResourceClearAddress                = Mos_Specific_GetResourceClearAddress;
     pOsInterface->pfnGetCommandBuffer                       = Mos_Specific_GetCommandBuffer;
     pOsInterface->pfnResetCommandBuffer                     = Mos_Specific_ResetCommandBuffer;
     pOsInterface->pfnReturnCommandBuffer                    = Mos_Specific_ReturnCommandBuffer;
@@ -7156,8 +7130,6 @@ MOS_STATUS Mos_Specific_InitInterface(
 
     pOsInterface->pfnIsMismatchOrderProgrammingSupported    = Mos_Specific_IsMismatchOrderProgrammingSupported;
     pOsInterface->pfnIsMultipleCodecDevicesInUse            = Mos_Specific_pfnIsMultipleCodecDevicesInUse;
-    pOsInterface->pfnSetMultiEngineEnabled                  = Mos_Specific_pfnSetMultiEngineEnabled;
-    pOsInterface->pfnGetMultiEngineStatus                   = Mos_Specific_pfnGetMultiEngineStatus;
     pOsInterface->pfnGetLatestVirtualNode                   = Mos_Specific_pfnGetLatestVirtualNode;
     pOsInterface->pfnSetLatestVirtualNode                   = Mos_Specific_pfnSetLatestVirtualNode;
     pOsInterface->pfnGetDecoderVirtualNodePerStream         = Mos_Specific_pfnGetDecoderVirtualNodePerStream;
@@ -7174,8 +7146,6 @@ MOS_STATUS Mos_Specific_InitInterface(
     pOsInterface->pfnCreateCmDevice                         = CreateCmDevice;
     pOsInterface->pfnDestroyCmDevice                        = DestroyCmDevice;
     pOsInterface->pfnInitCmInterface                        = InitCmOsDDIInterface;
-
-    pOsInterface->pfnIsAsynDevice                           = Mos_Specific_IsAsyncDevice;
 
 #if (_DEBUG || _RELEASE_INTERNAL)
     pOsInterface->pfnGetEngineLogicId                       = Mos_Specific_GetEngineLogicId;
@@ -7287,7 +7257,7 @@ MOS_STATUS Mos_Specific_InitInterface(
 
         //Added by Ben for video memory allocation
         pOsContext->bufmgr = pOsDriverContext->bufmgr;
-        mos_bufmgr_enable_reuse(pOsDriverContext->bufmgr);
+        mos_bufmgr_gem_enable_reuse(pOsDriverContext->bufmgr);
     }
 
     pOsInterface->pOsContext                  = pOsContext;
@@ -7322,7 +7292,6 @@ MOS_STATUS Mos_Specific_InitInterface(
 
     // enable it on Linux
     pOsInterface->bMediaReset         = true;
-    pOsInterface->trinityPath         = TRINITY_DISABLED;
     pOsInterface->umdMediaResetEnable = true;
 
     pMediaWatchdog = getenv("INTEL_MEDIA_RESET_WATCHDOG");
@@ -7429,11 +7398,11 @@ finish:
 MOS_TILE_TYPE LinuxToMosTileType(uint32_t type)
 {
     switch (type) {
-        case TILING_NONE:
+        case I915_TILING_NONE:
             return MOS_TILE_LINEAR;
-        case TILING_X:
+        case I915_TILING_X:
             return MOS_TILE_X;
-        case TILING_Y:
+        case I915_TILING_Y:
             return MOS_TILE_Y;
         default:
             return MOS_TILE_INVALID;
@@ -7524,8 +7493,12 @@ PMOS_RESOURCE Mos_Specific_GetMarkerResource(
 //!
 uint32_t Mos_Specific_GetTsFrequency(PMOS_INTERFACE osInterface)
 {
-    uint32_t freq = 0;
-    int ret = mos_get_ts_frequency(osInterface->pOsContext->bufmgr, &freq);
+    int32_t freq = 0;
+    drm_i915_getparam_t gp;
+    MOS_ZeroMemory(&gp, sizeof(gp));
+    gp.param = I915_PARAM_CS_TIMESTAMP_FREQUENCY;
+    gp.value = &freq;
+    int ret = drmIoctl(osInterface->pOsContext->fd, DRM_IOCTL_I915_GETPARAM, &gp);
     if(ret == 0)
     {
         return freq;

@@ -336,11 +336,6 @@ public:
         return false;
     }
 
-    virtual bool IsDecompForInterlacedSurfWaEnabled()
-    {
-        return true;
-    }
-
     bool IsRenderDisabled()
     {
         return m_isRenderDisabled;

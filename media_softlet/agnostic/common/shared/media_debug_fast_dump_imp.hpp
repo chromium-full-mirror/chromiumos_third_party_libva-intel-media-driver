@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2022-2023, Intel Corporation
+* Copyright (c) 2022, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -62,22 +62,7 @@ protected:
         }
     };
 
-    struct ResBase
-    {
-    public:
-        virtual ~ResBase() = default;
-
-    public:
-        bool        occupied = false;
-        size_t      size     = 0;
-        size_t      offset   = 0;
-        std::string name;
-        std::function<
-            void(std::ostream &, const void *, size_t)>
-            serializer;
-    };
-
-    struct Res final : public ResBase
+    struct Res
     {
     public:
         static void SetOsInterface(PMOS_INTERFACE itf)
@@ -98,20 +83,15 @@ protected:
         }
 
     public:
+        bool         occupied = false;
         bool         localMem = false;
         MOS_RESOURCE res      = {};
-    };
-
-    struct ResSys final : public ResBase
-    {
-    public:
-        ~ResSys()
-        {
-            MOS_DeleteArray(res);
-        }
-
-    public:
-        char *res = nullptr;
+        size_t       size     = 0;
+        size_t       offset   = 0;
+        std::string  name;
+        std::function<
+            void(std::ostream &, const void *, size_t)>
+            serializer;
     };
 
     struct MemMng
@@ -254,10 +234,10 @@ protected:
 
 public:
     MediaDebugFastDumpImp(
-        MOS_INTERFACE    &osItf,
-        MediaCopyWrapper &mediaCopyWrapper,
-        const Config     *cfg) : m_osItf(osItf),
-                             m_mediaCopyWrapper(mediaCopyWrapper)
+        MOS_INTERFACE      &osItf,
+        MediaCopyBaseState &mediaCopyItf,
+        const Config       *cfg) : m_osItf(osItf),
+                             m_mediaCopyItf(mediaCopyItf)
     {
         std::unique_ptr<const Config> cfg1 = nullptr;
 
@@ -281,20 +261,11 @@ public:
             std::lock_guard<std::mutex> lk(m_mutex);
             m_stopScheduler = true;
         }
+
         if (m_scheduler.joinable())
         {
             m_cond.notify_one();
             m_scheduler.join();
-        }
-
-        {
-            std::lock_guard<std::mutex> lk(m_mutexSys);
-            m_stopSchedulerSys = true;
-        }
-        if (m_schedulerSys.joinable())
-        {
-            m_condSys.notify_one();
-            m_schedulerSys.join();
         }
     }
 
@@ -365,7 +336,7 @@ public:
                 }
             }
 
-            if (m_mediaCopyWrapper.MediaCopy(&res, &(*resIt)->res, m_copyMethod()) !=
+            if (m_mediaCopyItf.SurfaceCopy(&res, &(*resIt)->res, m_copyMethod()) !=
                 MOS_STATUS_SUCCESS)
             {
                 return m_writeError(
@@ -383,96 +354,6 @@ public:
         }
 
         m_cond.notify_one();
-    }
-
-    void operator()(
-        const void   *res,
-        std::string &&name,
-        size_t        dumpSize,
-        size_t        offset,
-        std::function<
-            void(std::ostream &, const void *, size_t)>
-            &&serializer)
-    {
-        if (m_2CacheTask() == false)
-        {
-            return;
-        }
-
-        if (res == nullptr)
-        {
-            return m_writeError(
-                name,
-                "resource_is_null");
-        }
-
-        if (dumpSize == 0)
-        {
-            return m_writeError(
-                name,
-                "dump_size_is_0");
-        }
-
-        // prepare resource pool and resource queue
-        {
-            std::unique_lock<std::mutex> lk(m_mutexSys);
-
-            auto &resArray = m_resPoolSys[dumpSize];
-
-            using CR = std::remove_reference<decltype(resArray)>::type::const_reference;
-
-            auto resIt = std::find_if(
-                resArray.begin(),
-                resArray.end(),
-                [](CR r) {
-                    return r->occupied == false;
-                });
-
-            if (resIt == resArray.end())
-            {
-                auto tmpRes = std::make_shared<ResSys>();
-                if ((tmpRes->res = MOS_NewArray(char, dumpSize)) != nullptr)
-                {
-                    resArray.emplace_back(std::move(tmpRes));
-                    --(resIt = resArray.end());
-                }
-                else if (!m_allowDataLoss && !resArray.empty())
-                {
-                    m_condSys.wait(
-                        lk,
-                        [&] {
-                            resIt = std::find_if(
-                                resArray.begin(),
-                                resArray.end(),
-                                [](CR r) {
-                                    return r->occupied == false;
-                                });
-                            return resIt != resArray.end();
-                        });
-                }
-                else
-                {
-                    return m_writeError(
-                        name,
-                        "discarded");
-                }
-            }
-
-            MOS_SecureMemcpy(
-                (*resIt)->res,
-                dumpSize,
-                static_cast<const char *>(res) + offset,
-                dumpSize);
-
-            (*resIt)->occupied   = true;
-            (*resIt)->size       = dumpSize;
-            (*resIt)->offset     = 0;
-            (*resIt)->name       = std::move(name);
-            (*resIt)->serializer = std::move(serializer);
-            m_resQueueSys.emplace(*resIt);
-        }
-
-        m_condSys.notify_one();
     }
 
 protected:
@@ -635,60 +516,35 @@ protected:
 
     void ConfigureWriter(const Config &cfg)
     {
-        switch (cfg.writeDst)
+        switch (cfg.writeMode)
         {
         case 0: {
-            if (cfg.writeMode == 0 && cfg.bufferSize > 0)
-            {
-                m_write = BufferedWriter(cfg.bufferSize);
-            }
-            else if (cfg.writeMode == 0)
-            {
-                m_write = [=](
-                              std::string &&name,
-                              const void   *data,
-                              size_t        size,
-                              std::function<void(std::ostream &, const void *, size_t)> &&) {
-                    std::ofstream ofs(name, std::ios_base::out | std::ios_base::binary);
-                    ofs.write(static_cast<const char *>(data), size);
-                };
-            }
-            else if (cfg.writeMode == 1)
-            {
-                m_write = [](std::string &&name,
-                              const void  *data,
-                              size_t       size,
-                              std::function<void(std::ostream &, const void *, size_t)>
-                                  &&serializer) {
-                    std::ofstream ofs(name, std::ios_base::out);
-                    serializer(ofs, data, size);
-                };
-            }
-            else
-            {
-                m_write = [](std::string &&name,
-                              const void  *data,
-                              size_t       size,
-                              std::function<void(std::ostream &, const void *, size_t)>
-                                  &&serializer) {
-                    if (serializer.target_type() ==
-                        std::function<void(std::ostream &, const void *, size_t)>(
-                            DefaultSerializer())
-                            .target_type())
-                    {
-                        std::ofstream ofs(name, std::ios_base::out | std::ios_base::binary);
-                        ofs.write(static_cast<const char *>(data), size);
-                    }
-                    else
-                    {
-                        std::ofstream ofs(name, std::ios_base::out);
-                        serializer(ofs, data, size);
-                    }
-                };
-            }
+            m_write = [](
+                          std::string &&name,
+                          const void   *data,
+                          size_t        size,
+                          std::function<void(std::ostream &, const void *, size_t)> &&) {
+                std::ofstream ofs(name, std::ios_base::out | std::ios_base::binary);
+                ofs.write(static_cast<const char *>(data), size);
+            };
             break;
         }
         case 1: {
+            m_write = BufferedWriter(cfg.bufferSize);
+            break;
+        }
+        case 2: {
+            m_write = [](std::string &&name,
+                          const void  *data,
+                          size_t       size,
+                          std::function<void(std::ostream &, const void *, size_t)>
+                              &&serializer) {
+                std::ofstream ofs(name, std::ios_base::out);
+                serializer(ofs, data, size);
+            };
+            break;
+        }
+        case 3: {
             m_write = [](
                           std::string &&name,
                           const void   *data,
@@ -698,8 +554,8 @@ protected:
             };
             break;
         }
-        case 2:
         default: {
+            // should not happen
             m_write = [](
                           std::string &&,
                           const void *,
@@ -709,7 +565,7 @@ protected:
         }
         }
 
-        if (cfg.informOnError && cfg.writeDst == 0)
+        if (cfg.informOnError && cfg.writeMode != 3)
         {
             m_writeError = [this](const std::string &name, const std::string &error) {
                 static const char dummy = 0;
@@ -774,59 +630,6 @@ protected:
                     m_resQueue.pop();
                 }
             });
-
-        m_schedulerSys = std::thread(
-            [this] {
-                std::future<void> future;
-                while (true)
-                {
-                    std::unique_lock<std::mutex> lk(m_mutexSys);
-                    m_condSys.wait(
-                        lk,
-                        [this] {
-                            return (m_ready4DumpSys && !m_resQueueSys.empty()) || m_stopSchedulerSys;
-                        });
-                    if (m_stopSchedulerSys)
-                    {
-                        break;
-                    }
-                    auto qf         = m_resQueueSys.front();
-                    m_ready4DumpSys = false;
-                    lk.unlock();
-                    future = std::async(
-                        std::launch::async,
-                        [this, qf] {
-                            m_write(
-                                std::move(qf->name),
-                                qf->res + qf->offset,
-                                qf->size,
-                                std::move(qf->serializer));
-                            {
-                                std::lock_guard<std::mutex> lk(m_mutexSys);
-                                m_resQueueSys.front()->occupied = false;
-                                m_resQueueSys.pop();
-                                m_ready4DumpSys = true;
-                            }
-                            m_condSys.notify_all();
-                        });
-                }
-                if (future.valid())
-                {
-                    future.wait();
-                }
-                std::lock_guard<std::mutex> lk(m_mutexSys);
-                while (!m_resQueueSys.empty())
-                {
-                    auto qf = m_resQueueSys.front();
-                    m_write(
-                        std::move(qf->name),
-                        qf->res + qf->offset,
-                        qf->size,
-                        std::move(qf->serializer));
-                    qf->occupied = false;
-                    m_resQueueSys.pop();
-                }
-            });
     }
 
     MOS_STATUS GetResInfo(MOS_RESOURCE &res, ResInfo &resInfo) const
@@ -860,7 +663,6 @@ protected:
 
         auto         pRes   = &res->res;
         MOS_RESOURCE tmpRes = {};
-
         if (res->localMem)
         {
             // locking/reading resource from local graphic memory is extremely inefficient, so
@@ -882,7 +684,7 @@ protected:
                     "allocate_tmp_resource_failed");
             }
 
-            if (m_mediaCopyWrapper.MediaCopy(&res->res, &tmpRes, m_copyMethod()) !=
+            if (m_mediaCopyItf.SurfaceCopy(&res->res, &tmpRes, m_copyMethod()) !=
                 MOS_STATUS_SUCCESS)
             {
                 return m_writeError(
@@ -901,7 +703,7 @@ protected:
                 "incorrect_size_offset");
         }
 
-        auto data = static_cast<const char *>(
+        auto data = static_cast<const uint8_t *>(
             m_osItf.pfnLockResource(&m_osItf, pRes, &lockFlags));
 
         if (data)
@@ -935,7 +737,6 @@ protected:
         m_memMng;
 
     std::thread m_scheduler;
-    std::thread m_schedulerSys;
 
     std::map<
         ResInfo,
@@ -943,18 +744,9 @@ protected:
         ResInfoCmp>
         m_resPool;  // synchronization needed
 
-    std::map<
-        size_t,
-        std::vector<std::shared_ptr<ResSys>>>
-        m_resPoolSys;  // synchronization needed
-
     std::queue<
         std::shared_ptr<Res>>
         m_resQueue;  // synchronization needed
-
-    std::queue<
-        std::shared_ptr<ResSys>>
-        m_resQueueSys;  // synchronization needed
 
     std::function<
         bool()>
@@ -981,18 +773,14 @@ protected:
         m_writeError;
 
     // threads intercommunication flags, synchronization needed
-    bool m_ready4Dump       = true;
-    bool m_ready4DumpSys    = true;
-    bool m_stopScheduler    = false;
-    bool m_stopSchedulerSys = false;
+    bool m_ready4Dump    = true;
+    bool m_stopScheduler = false;
 
     std::mutex              m_mutex;
-    std::mutex              m_mutexSys;
     std::condition_variable m_cond;
-    std::condition_variable m_condSys;
 
-    MOS_INTERFACE    &m_osItf;
-    MediaCopyWrapper &m_mediaCopyWrapper;
+    MOS_INTERFACE      &m_osItf;
+    MediaCopyBaseState &m_mediaCopyItf;
 
     MEDIA_CLASS_DEFINE_END(MediaDebugFastDumpImp)
 };

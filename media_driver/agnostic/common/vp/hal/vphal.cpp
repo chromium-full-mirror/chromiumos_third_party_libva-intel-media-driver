@@ -83,7 +83,7 @@ MOS_STATUS VphalState::Allocate(
 
             // MhwInterfaces always create CP and MI interfaces, so we have to delete those we don't need.
             MOS_Delete(mhwInterfaces->m_miInterface);
-            m_osInterface->pfnDeleteMhwCpInterface(mhwInterfaces->m_cpInterface);
+            Delete_MhwCpInterface(mhwInterfaces->m_cpInterface);
             mhwInterfaces->m_cpInterface = nullptr;
             MOS_Delete(mhwInterfaces);
         }
@@ -251,13 +251,7 @@ static bool IsSurfNeedAvs(
 
         if (IS_YUV_FORMAT(pSurf->Format))
         {
-            // Not perform AVS for surface with VPHAL_SCALING_NEAREST
-            // or VPHAL_SCALING_BILINEAR scaling mode.
-            if (pSurf->ScalingMode == VPHAL_SCALING_AVS ||
-                pSurf->ScalingMode == VPHAL_SCALING_ADV_QUALITY)
-            {
-                return true;
-            }
+            return true;
         }
     }
 finish:
@@ -765,15 +759,8 @@ VphalState::~VphalState()
 
     if (m_cpInterface)
     {
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
-            m_cpInterface = nullptr;
-        }
-        else
-        {
-            VPHAL_PUBLIC_ASSERTMESSAGE("Failed to destroy cpInterface.");
-        }
+        Delete_MhwCpInterface(m_cpInterface);
+        m_cpInterface = nullptr;
     }
 
     if (m_sfcInterface)

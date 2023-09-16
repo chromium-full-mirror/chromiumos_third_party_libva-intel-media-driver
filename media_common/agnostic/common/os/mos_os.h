@@ -41,6 +41,119 @@
 
 #include "media_user_setting_specific.h"
 #include "null_hardware.h"
+extern PerfUtility *g_perfutility;
+
+#define PERF_DECODE "DECODE"
+#define PERF_ENCODE "ENCODE"
+#define PERF_VP "VP"
+#define PERF_CP "CP"
+#define PERF_MOS "MOS"
+
+#define PERF_LEVEL_DDI "DDI"
+#define PERF_LEVEL_HAL "HAL"
+
+#define DECODE_DDI (1)
+#define DECODE_HAL (1 << 1)
+#define ENCODE_DDI (1 << 4)
+#define ENCODE_HAL (1 << 5)
+#define VP_DDI     (1 << 8)
+#define VP_HAL     (1 << 9)
+#define CP_DDI     (1 << 12)
+#define CP_HAL     (1 << 13)
+#define MOS_DDI    (1 << 16)
+#define MOS_HAL    (1 << 17)
+
+#define PERFUTILITY_IS_ENABLED(sCOMP,sLEVEL)                                                              \
+    (((sCOMP == "DECODE" && sLEVEL == "DDI") && (g_perfutility->dwPerfUtilityIsEnabled & DECODE_DDI)) ||  \
+     ((sCOMP == "DECODE" && sLEVEL == "HAL") && (g_perfutility->dwPerfUtilityIsEnabled & DECODE_HAL)) ||  \
+     ((sCOMP == "ENCODE" && sLEVEL == "DDI") && (g_perfutility->dwPerfUtilityIsEnabled & ENCODE_DDI)) ||  \
+     ((sCOMP == "ENCODE" && sLEVEL == "HAL") && (g_perfutility->dwPerfUtilityIsEnabled & ENCODE_HAL)) ||  \
+     ((sCOMP == "VP" && sLEVEL == "DDI") && (g_perfutility->dwPerfUtilityIsEnabled & VP_DDI)) ||          \
+     ((sCOMP == "VP" && sLEVEL == "HAL") && (g_perfutility->dwPerfUtilityIsEnabled & VP_HAL)) ||          \
+     ((sCOMP == "CP" && sLEVEL == "DDI") && (g_perfutility->dwPerfUtilityIsEnabled & CP_DDI)) ||          \
+     ((sCOMP == "CP" && sLEVEL == "HAL") && (g_perfutility->dwPerfUtilityIsEnabled & CP_HAL)) ||          \
+     ((sCOMP == "MOS" && sLEVEL == "DDI") && (g_perfutility->dwPerfUtilityIsEnabled & MOS_DDI)) ||        \
+     ((sCOMP == "MOS" && sLEVEL == "HAL") && (g_perfutility->dwPerfUtilityIsEnabled & MOS_HAL)))
+
+#define PERF_UTILITY_START(TAG,COMP,LEVEL)                                 \
+    do                                                                     \
+    {                                                                      \
+        if (PERFUTILITY_IS_ENABLED((std::string)COMP,(std::string)LEVEL))  \
+        {                                                                  \
+            g_perfutility->startTick(TAG);                                 \
+        }                                                                  \
+    } while(0)
+
+#define PERF_UTILITY_STOP(TAG, COMP, LEVEL)                                \
+    do                                                                     \
+    {                                                                      \
+        if (PERFUTILITY_IS_ENABLED((std::string)COMP,(std::string)LEVEL))  \
+        {                                                                  \
+            g_perfutility->stopTick(TAG);                                  \
+        }                                                                  \
+    } while (0)
+
+static int perf_count_start = 0;
+static int perf_count_stop = 0;
+
+#define PERF_UTILITY_START_ONCE(TAG, COMP,LEVEL)                           \
+    do                                                                     \
+    {                                                                      \
+        if (perf_count_start == 0                                          \
+            && PERFUTILITY_IS_ENABLED((std::string)COMP,(std::string)LEVEL))  \
+        {                                                                  \
+                g_perfutility->startTick(TAG);                             \
+        }                                                                  \
+        perf_count_start++;                                                \
+    } while(0)
+
+#define PERF_UTILITY_STOP_ONCE(TAG, COMP, LEVEL)                           \
+    do                                                                     \
+    {                                                                      \
+        if (perf_count_stop == 0                                           \
+            && PERFUTILITY_IS_ENABLED((std::string)COMP,(std::string)LEVEL))  \
+        {                                                                  \
+            g_perfutility->stopTick(TAG);                                  \
+        }                                                                  \
+        perf_count_stop++;                                                 \
+    } while (0)
+
+#define PERF_UTILITY_AUTO(TAG,COMP,LEVEL) AutoPerfUtility apu(TAG,COMP,LEVEL)
+
+#define PERF_UTILITY_PRINT                         \
+    do                                             \
+    {                                              \
+        if (g_perfutility->dwPerfUtilityIsEnabled && MosUtilities::MosIsProfilerDumpEnabled()) \
+        {                                          \
+            g_perfutility->savePerfData();         \
+        }                                          \
+    } while(0)
+
+class AutoPerfUtility
+{
+public:
+    AutoPerfUtility(std::string tag, std::string comp, std::string level)
+    {
+        if (PERFUTILITY_IS_ENABLED(comp, level))
+        {
+            g_perfutility->startTick(tag);
+            autotag = tag;
+            bEnable = true;
+        }
+    }
+    ~AutoPerfUtility()
+    {
+        if (bEnable)
+        {
+            g_perfutility->stopTick(autotag);
+        }
+    }
+
+private:
+    bool bEnable = false;
+    std::string autotag ="intialized";
+};
+
 //!
 //! \brief OS specific includes and definitions
 //!
@@ -141,13 +254,6 @@ typedef enum _MOS_SCALABILITY_ENABLE_MODE
     MOS_SCALABILITY_ENABLE_MODE_DEFAULT    = 0x0001,
     MOS_SCALABILITY_ENABLE_MODE_USER_FORCE = 0x0010
 } MOS_SCALABILITY_ENABLE_MODE;
-
-typedef enum _TRINITY_PATH
-{
-    TRINITY_DISABLED  = 0,
-    TRINITY9_ENABLED  = 1,
-    TRINITY11_ENABLED = 2,
-} TRINITY_PATH;
 
 #if (_DEBUG || _RELEASE_INTERNAL)
 //!
@@ -420,13 +526,6 @@ struct _MOS_GPUCTX_CREATOPTIONS
         SSEUValue(0),
         isRealTimePriority(0){}
 
-    _MOS_GPUCTX_CREATOPTIONS(_MOS_GPUCTX_CREATOPTIONS* createOption) : CmdBufferNumScale(createOption->CmdBufferNumScale),
-                                 RAMode(createOption->RAMode),
-                                 ProtectMode(createOption->ProtectMode),
-                                 gpuNode(createOption->gpuNode),
-                                 SSEUValue(createOption->SSEUValue),
-                                 isRealTimePriority(createOption->isRealTimePriority) {}
-
     virtual ~_MOS_GPUCTX_CREATOPTIONS(){}
 };
 
@@ -542,7 +641,7 @@ struct MosStreamState
     int32_t eForceVebox                         = 0;        //!< Force select Vebox
 #endif // _DEBUG || _RELEASE_INTERNAL
 
-    bool  bParallelSubmission                        = false;    //!< Flag to indicate if parallel submission is enabled
+    bool  bGucSubmission                        = false;    //!< Flag to indicate if guc submission is enabled
     OS_PER_STREAM_PARAMETERS  perStreamParameters = nullptr; //!< Parameters of OS specific per stream
 
     static void *pvSoloContext;                             //!< pointer to MediaSolo context
@@ -579,34 +678,6 @@ namespace CMRT_UMD
 };
 struct _CM_HAL_STATE;
 typedef struct _CM_HAL_STATE *PCM_HAL_STATE;
-class MhwCpInterface;
-class CpCopyInterface;
-class CodechalSecureDecodeInterface;
-class CodechalSetting;
-class CodechalHwInterface;
-class CodechalHwInterfaceNext;
-
-struct MOS_SURF_DUMP_SURFACE_DEF
-{
-    uint32_t offset;  //!< Offset from start of the plane
-    uint32_t height;  //!< Height in rows
-    uint32_t width;   //!< Width in bytes
-    uint32_t pitch;   //!< Pitch in bytes
-};
-
-struct ResourceDumpAttri
-{
-    MOS_RESOURCE            res           = {};
-    MOS_LOCK_PARAMS         lockFlags     = {};
-    std::string             fullFileName  = {};
-    uint32_t                width         = 0;
-    uint32_t                height        = 0;
-    uint32_t                pitch         = 0;
-    MOS_GFXRES_FREE_FLAGS   resFreeFlags  = {};
-    MOS_PLANE_OFFSET        yPlaneOffset  = {};  // Y surface plane offset
-    MOS_PLANE_OFFSET        uPlaneOffset  = {};  // U surface plane offset
-    MOS_PLANE_OFFSET        vPlaneOffset  = {};  // V surface plane offset
-};
 
 //!
 //! \brief Structure to Unified HAL OS resources
@@ -680,7 +751,6 @@ typedef struct _MOS_INTERFACE
     // used for media reset enabling/disabling in UMD
     // pls remove it after hw scheduling
     int32_t                         bMediaReset;
-    TRINITY_PATH                    trinityPath;
 
     bool                            umdMediaResetEnable;
 
@@ -717,7 +787,6 @@ typedef struct _MOS_INTERFACE
 #endif // (_DEBUG || _RELEASE_INTERNAL)
 
     bool                            apoMosEnabled;                                //!< apo mos or not
-    std::vector<ResourceDumpAttri>  resourceDumpAttriArray;
 
     MEMORY_OBJECT_CONTROL_STATE (* pfnCachePolicyGetMemoryObject) (
         MOS_HW_RESOURCE_DEF         Usage,
@@ -1011,10 +1080,6 @@ typedef struct _MOS_INTERFACE
         uint32_t              bpp,
         bool                  bOutputCompressed);
 
-    MOS_STATUS (*pfnVerifyMosSurface) (
-        PMOS_SURFACE mosSurface,
-        bool        &bIsValid);
-
     MOS_STATUS(*pfnGetMosContext) (
         PMOS_INTERFACE        pOsInterface,
         PMOS_CONTEXT*         mosContext);
@@ -1046,10 +1111,6 @@ typedef struct _MOS_INTERFACE
     uint64_t (* pfnGetResourceGfxAddress) (
         PMOS_INTERFACE              pOsInterface,
         PMOS_RESOURCE               pResource);
-
-    uint64_t (*pfnGetResourceClearAddress)(
-        PMOS_INTERFACE pOsInterface,
-        PMOS_RESOURCE  pResource);
 
     MOS_STATUS (* pfnSetPatchEntry) (
         PMOS_INTERFACE              pOsInterface,
@@ -1241,18 +1302,6 @@ typedef struct _MOS_INTERFACE
 
     bool (*pfnIsMultipleCodecDevicesInUse)(
         PMOS_INTERFACE              pOsInterface);
-
-    MOS_STATUS (*pfnSetMultiEngineEnabled)(
-        PMOS_INTERFACE pOsInterface,
-        MOS_COMPONENT  component,
-        bool           enabled);
-
-    MOS_STATUS (*pfnGetMultiEngineStatus)(
-        PMOS_INTERFACE pOsInterface,
-        PLATFORM      *platform,
-        MOS_COMPONENT  component,
-        bool          &isMultiDevices,
-        bool          &isMultiEngine);
 
     MOS_GPU_NODE(*pfnGetLatestVirtualNode)(
         PMOS_INTERFACE              pOsInterface,
@@ -1549,7 +1598,7 @@ typedef struct _MOS_INTERFACE
     //! \return   void
     //!
     void (*pfnGetRtLogResourceInfo)(
-        PMOS_INTERFACE              osInterface,
+        MOS_STREAM_HANDLE           streamState,
         PMOS_RESOURCE               &osResource,
         uint32_t                    &size);
 
@@ -1593,36 +1642,9 @@ typedef struct _MOS_INTERFACE
     uint8_t (*pfnGetEngineLogicIdByIdx)(
         MOS_STREAM_HANDLE           streamState,
         uint32_t                    instanceIdx);
-
-    //!
-    //! \brief    Set Gpu Virtual Address for Debug
-    //! \details  Manually make page fault
-    //!
-    //! \param    [in] pResource
-    //!           Resource to set Gpu Address
-    //! \param    [in] address
-    //!           Address to set
-    //! \return   MOS_STATUS
-    //!
-    MOS_STATUS (*pfnSetGpuVirtualAddress)(
-        PMOS_RESOURCE               pResource,
-        uint64_t                    address);
 #endif
 
 #if MOS_MEDIASOLO_SUPPORTED
-    //!
-    //! \brief    Solo set ready to execute
-    //! \details  Solo set ready to execute
-    //! \param    [in] osInterface
-    //!           Pointer to OsInterface
-    //! \param    [in] readyToExecute
-    //!           ready to execute
-    //! \return   void
-    //!
-    void (*pfnMosSoloSetReadyToExecute)(
-        PMOS_INTERFACE              osInterface,
-        bool                        readyToExecute);
-
     //!
     //! \brief    Solo Check node limitation
     //! \details  Solo Check node limitation
@@ -1942,44 +1964,6 @@ typedef struct _MOS_INTERFACE
     MOS_STATUS (*pfnInitCmInterface)(
         PCM_HAL_STATE           cmState);
 
-    //!
-    //! \brief    Create MhwCpInterface Object
-    //!           Must use Delete_MhwCpInterface to delete created Object to avoid ULT Memory Leak errors
-    //!
-    //! \return   Return CP Wrapper Object if CPLIB not loaded
-    //!
-    MhwCpInterface* (*pfnCreateMhwCpInterface)(PMOS_INTERFACE osInterface);
-
-    //!
-    //! \brief    Delete the MhwCpInterface Object
-    //!
-    //! \param    [in] *pMhwCpInterface
-    //!           MhwCpInterface
-    //!
-    void (*pfnDeleteMhwCpInterface)(MhwCpInterface *mhwCpInterface);
-
-    CpCopyInterface* (*pfnCreateCpCopyInterface)(MOS_CONTEXT_HANDLE osDriverContext, MOS_STATUS &status);
-
-    void (*pfnDeleteCpCopyInterface)(CpCopyInterface *cpCopyInterface);
-
-    //!
-    //! \brief    Create CodechalSecureDeocde Object
-    //!           Must use Delete_CodechalSecureDecodeInterface to delete created Object to avoid ULT Memory Leak errors
-    //!
-    //! \return   Return CP Wrapper Object
-    //!
-    CodechalSecureDecodeInterface* (*pfnCreateSecureDecodeInterface)(
-        CodechalSetting *codechalSettings,
-        CodechalHwInterface *hwInterfaceInput);
-
-    //!
-    //! \brief    Delete the CodecHalSecureDecode Object
-    //!
-    //! \param    [in] *codechalSecureDecodeInterface
-    //!           CodechalSecureDecodeInterface
-    //!
-    void (*pfnDeleteSecureDecodeInterface)(CodechalSecureDecodeInterface *codechalSecureDecodeInterface);
-
 #if (_DEBUG || _RELEASE_INTERNAL)
     //!
     //! \brief    gpuCtxCreateOption Init for media Scalability
@@ -1995,19 +1979,6 @@ typedef struct _MOS_INTERFACE
         PMOS_INTERFACE                 pOsInterface,
         uint8_t&                       id);
 #endif
-    //!
-    //! \brief    Is Device Async or not
-    //! \details  Is Device Async or not.
-    //!
-    //! \param    PMOS_INTERFACE pOsInterface
-    //!           [in] OS Interface
-    //!
-    //! \return   bool
-    //!           Return true if is async, otherwise false
-    //!
-    bool (*pfnIsAsynDevice)(
-        PMOS_INTERFACE              osInterface);
-
     //!
     //! \brief   Get User Setting instance
     //!
@@ -2028,7 +1999,7 @@ typedef struct _MOS_INTERFACE
     bool                            phasedSubmission = false;                     //!< Flag to indicate if secondary command buffers are submitted together (Win) or separately (Linux)
     bool                            frameSplit = true;                            //!< Flag to indicate if frame split is enabled
     bool                            bSetHandleInvalid = false;
-    bool                            bParallelSubmission = false;                       //!< Flag to indicate if parallel submission is enabled
+    bool                            bGucSubmission = false;                       //!< Flag to indicate if guc submission is enabled
     MOS_CMD_BUF_ATTRI_VE            bufAttriVe[MOS_GPU_CONTEXT_MAX];
 
     MOS_STATUS (*pfnCheckVirtualEngineSupported)(
@@ -2171,34 +2142,6 @@ struct _MOS_GPUCTX_CREATOPTIONS_ENHANCED : public _MOS_GPUCTX_CREATOPTIONS
         }
 #endif
     }
-
-    _MOS_GPUCTX_CREATOPTIONS_ENHANCED(_MOS_GPUCTX_CREATOPTIONS* createOption)
-        : _MOS_GPUCTX_CREATOPTIONS(createOption)
-    {
-        if (typeid(*createOption) == typeid(_MOS_GPUCTX_CREATOPTIONS_ENHANCED))
-        {
-            Flags     = ((MOS_GPUCTX_CREATOPTIONS_ENHANCED *)createOption)->Flags;
-            LRCACount = ((MOS_GPUCTX_CREATOPTIONS_ENHANCED *)createOption)->LRCACount;
-#if (_DEBUG || _RELEASE_INTERNAL)
-            for (auto i = 0; i < MOS_MAX_ENGINE_INSTANCE_PER_CLASS; i++)
-            {
-                EngineInstance[i] = ((MOS_GPUCTX_CREATOPTIONS_ENHANCED *)createOption)->EngineInstance[i];
-            }
-#endif
-        }
-        else
-        {
-            Flags     = 0;
-            LRCACount = 0;
-#if (_DEBUG || _RELEASE_INTERNAL)
-            for (auto i = 0; i < MOS_MAX_ENGINE_INSTANCE_PER_CLASS; i++)
-            {
-                EngineInstance[i] = 0xff;
-            }
-#endif
-        }
-    }
-    
 };
 
 #define MOS_VE_SUPPORTED(pOsInterface) \
@@ -2222,19 +2165,6 @@ __inline void Mos_SetVirtualEngineSupported(PMOS_INTERFACE pOsInterface, bool bE
         pOsInterface->bSupportVirtualEngine = bEnabled;
     }
 }
-
-//!
-//! \brief   Check whether the parameter of mos surface is valid for copy
-//!
-//! \param    [in] mosSurface
-//!           Pointer to MosSurface
-//!
-//! \return   bool
-//!           Whether the paramter of mosSurface is valid
-//!
-MOS_STATUS Mos_VerifyMosSurface(
-    PMOS_SURFACE mosSurface,
-    bool        &bIsValid);
 
 //!
 //! \brief    Check virtual engine is supported
@@ -2464,7 +2394,7 @@ uint64_t Mos_GetResourceHandle(
 //! \return   void
 //!
 void Mos_GetRtLogResourceInfo(
-    PMOS_INTERFACE          osInterface,
+    MOS_STREAM_HANDLE       streamState,
     PMOS_RESOURCE           &osResource,
     uint32_t                &size);
 
@@ -2508,20 +2438,6 @@ uint8_t Mos_GetVeEngineCount(
 uint8_t Mos_GetEngineLogicId(
     MOS_STREAM_HANDLE       streamState,
     uint32_t                instanceIdx);
-
-//!
-//! \brief    Set Gpu Virtual Address for Debug
-//! \details  Manually make page fault
-//!
-//! \param    [in] pResource
-//!           Resource to set Gpu Address
-//! \param    [in] address
-//!           Address to set
-//! \return   MOS_STATUS
-//!
-MOS_STATUS MOS_SetGpuVirtualAddress(
-    PMOS_RESOURCE pResource, 
-    uint64_t      address);
 
 #endif
 

@@ -85,7 +85,6 @@ struct ScalabilityPars : public ContextRequirement
     bool    enableTileReplay = false;
     uint32_t raMode = 0;
     uint32_t protectMode = 0;
-    bool     allowSwArbitarySplit = false;
 };
 
 class ScalabilityTrace

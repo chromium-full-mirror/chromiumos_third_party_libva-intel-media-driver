@@ -52,7 +52,7 @@ MOS_STATUS EncodeScalabilityOption::SetScalabilityOption(ScalabilityPars *params
     }
 
     m_numPipe = encPars->numVdbox;
-    if (encPars->numTileColumns != m_numPipe && !encPars->allowSwArbitarySplit)
+    if (encPars->numTileColumns != m_numPipe)
     {
         m_numPipe = 1;// switch back to the single VDBOX mode if invalid tile column test cases.
         //only set it when tile colums number less than vdbox number.

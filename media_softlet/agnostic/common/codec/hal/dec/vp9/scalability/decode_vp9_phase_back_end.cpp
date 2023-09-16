@@ -36,7 +36,7 @@ uint32_t Vp9PhaseBackEnd::GetCmdBufIndex()
     DECODE_FUNC_CALL();
     DECODE_ASSERT(m_scalabOption.GetNumPipe() > 1);
 
-    if (m_scalabOption.IsFESeparateSubmission() && !m_pipeline->IsParallelSubmission())
+    if (m_scalabOption.IsFESeparateSubmission() && !m_pipeline->IsGucSubmission())
     {
         return m_secondaryCmdBufIdxBase + GetPipe();
     }

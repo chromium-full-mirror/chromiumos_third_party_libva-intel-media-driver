@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019 - 2023, Intel Corporation
+* Copyright (c) 2019, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -47,8 +47,6 @@ public:
 
     virtual MOS_STATUS Prepare(void *params) override;
 
-    virtual bool IsDualEncEnabled() {return m_dualEncEnable;}
-
     enum Av1PacketIds
     {
         Av1HucBrcInit = CONSTRUCTPACKETID(PACKET_COMPONENT_ENCODE, PACKET_SUBCOMPONENT_AV1, 0),
@@ -56,7 +54,11 @@ public:
         Av1VdencPacket,
         Av1PakIntegrate,
         Av1BackAnnotation,
-        Av1Superres
+#if _MEDIA_RESERVED
+#define AV1_PACKET_IDS_EXT
+#include "encode_av1_pipeline_ext.h"
+#undef AV1_PACKET_IDS_EXT
+#endif
     };
 
 protected:
@@ -103,8 +105,6 @@ protected:
         const CODEC_AV1_ENCODE_TILE_GROUP_PARAMS *tilegroupParams,
         uint32_t                                  index);
 #endif
-
-    bool m_dualEncEnable = false;
 
 MEDIA_CLASS_DEFINE_END(encode__Av1Pipeline)
 };

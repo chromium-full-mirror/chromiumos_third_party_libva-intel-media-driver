@@ -228,8 +228,6 @@ public:
     //!
     virtual MOS_STATUS Initialize(MEDIA_SFC_INTERFACE_MODE mode);
 
-    bool IsRenderInitialized();
-
 protected:
     PMOS_INTERFACE m_osInterface    = nullptr;
     MediaSfcRender *m_sfcRender     = nullptr;

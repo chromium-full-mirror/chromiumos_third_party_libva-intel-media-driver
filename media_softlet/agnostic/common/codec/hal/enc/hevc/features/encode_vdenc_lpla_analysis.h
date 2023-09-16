@@ -437,7 +437,7 @@ namespace encode
         MOS_STATUS EnableStreamIn(bool is1stPass, bool isLastPass, bool &streaminEnabled);
         MOS_STATUS SetVdencPipeBufAddrParams(bool enableStreamIn, MHW_VDBOX_PIPE_BUF_ADDR_PARAMS &pipeBufAddrParams);
 
-        MOS_STATUS ReadLPLAData(PMOS_COMMAND_BUFFER cmdBuffer, PMOS_RESOURCE resource, uint32_t baseOffset);
+        MOS_STATUS ReadLPLAData(PMOS_COMMAND_BUFFER cmdBuffer, PMOS_RESOURCE resource, uint32_t baseOffset, bool hucStsUpdNeeded);
 
         MHW_SETPAR_DECL_HDR(VDENC_PIPE_MODE_SELECT);
 
@@ -529,6 +529,9 @@ namespace encode
         PMOS_RESOURCE              m_vdencLaUpdateDmemBuffer[CODECHAL_ENCODE_RECYCLED_BUFFER_NUM][CODECHAL_LPLA_NUM_OF_PASSES] = {};  //!< VDEnc Lookahead Update DMEM buffer
         uint32_t                   m_statsBuffer[600][4]                                                                       = {};
         bool                       m_useDSData = false;
+#if _SW_BRC
+        bool                       m_isLookAheadDllCall           = false;
+#endif
 
     MEDIA_CLASS_DEFINE_END(encode__VdencLplaAnalysis)
     };

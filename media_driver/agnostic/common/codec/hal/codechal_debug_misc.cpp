@@ -41,7 +41,7 @@
 MOS_STATUS CodechalDebugInterface::Initialize(
     CodechalHwInterface *hwInterface,
     CODECHAL_FUNCTION    codecFunction,
-    MediaCopyWrapper    *mediaCopyWrapper)
+    MediaCopyBaseState  *mediaCopy)
 {
     CODECHAL_DEBUG_FUNCTION_ENTER;
 
@@ -64,10 +64,6 @@ MOS_STATUS CodechalDebugInterface::Initialize(
     CODECHAL_DEBUG_CHK_STATUS(m_configMgr->ParseConfig(m_osInterface->pOsContext));
 
     MediaDebugInterface::InitDumpLocation();
-
-    m_dumpYUVSurface = m_dumpYUVSurface_legacy_dump;
-
-    m_dumpBuffer = m_dumpBuffer_legacy_dump;
 
 #if (_DEBUG || _RELEASE_INTERNAL)
     {
@@ -110,7 +106,7 @@ MOS_STATUS CodechalDebugInterface::Initialize(
     }
 #endif
 
-    SetFastDumpConfig(mediaCopyWrapper);
+    SetFastDumpConfig(mediaCopy);
 
     return MOS_STATUS_SUCCESS;
 }

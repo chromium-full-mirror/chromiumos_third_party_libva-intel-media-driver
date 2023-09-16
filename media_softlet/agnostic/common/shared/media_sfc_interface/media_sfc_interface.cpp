@@ -90,12 +90,3 @@ MOS_STATUS MediaSfcInterface::Initialize(MEDIA_SFC_INTERFACE_MODE mode)
 
     return MOS_STATUS_SUCCESS;
 }
-
-bool MediaSfcInterface::IsRenderInitialized()
-{
-    if (m_sfcRender)
-    {
-        return m_sfcRender->IsInitialized();
-    }
-    return false;
-}

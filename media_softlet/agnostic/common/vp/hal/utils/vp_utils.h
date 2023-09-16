@@ -287,7 +287,6 @@ protected:
 #define __VPHAL_RT_Cache_Setting                                        "VP RT Cache Setting"
 
 #if (_DEBUG || _RELEASE_INTERNAL)
-#define __VPHAL_RT_Old_Cache_Setting                                    "VP RT Old Cache Setting"
 #define __VPHAL_ENABLE_COMPUTE_CONTEXT                                  "VP Enable Compute Context"
 #define __VPHAL_RNDR_SCOREBOARD_CONTROL                                 "SCOREBOARD Control"
 #define __VPHAL_RNDR_CMFC_CONTROL                                       "CMFC Control"
@@ -296,7 +295,6 @@ protected:
 #define __VPHAL_HDR_ENABLE_QUALITY_TUNING                               "VPHAL HDR Enable Quality Tuning"
 #define __VPHAL_HDR_ENABLE_KERNEL_DUMP                                  "VPHAL HDR Enable Kernel Dump"
 #define __VPHAL_HDR_H2S_RGB_TM                                          "VPHAL H2S TM RGB Based"
-#define __VPHAL_HDR_3DLUT_CPU_PATH                                      "HDR 3DLut Table Use CPU Caculate"
 
 // Compression
 #define __VPHAL_MMC_ENABLE                                              "VP MMC In Use"

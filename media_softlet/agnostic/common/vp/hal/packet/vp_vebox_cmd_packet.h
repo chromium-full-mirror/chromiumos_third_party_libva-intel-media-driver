@@ -33,7 +33,6 @@
 #include "vp_filter.h"
 #include "mhw_mi_itf.h"
 #include "vp_render_sfc_base.h"
-#include "hal_oca_interface_next.h"
 
 #define VP_MAX_NUM_FFDI_SURFACES     4                                       //!< 2 for ADI plus additional 2 for parallel execution on HSW+
 #define VP_NUM_FFDN_SURFACES         2                                       //!< Number of FFDN surfaces
@@ -405,8 +404,8 @@ public:
     //!           Pointer to VEBOX_SURFACE_STATE command parameters
     //! \return   void
     //!
-    virtual MOS_STATUS SetupSurfaceStates(
-        PVP_VEBOX_SURFACE_STATE_CMD_PARAMS  pVeboxSurfaceStateCmdParams);
+    virtual void SetupSurfaceStates(
+        PVPHAL_VEBOX_SURFACE_STATE_CMD_PARAMS  pVeboxSurfaceStateCmdParams);
 
     //!
     //! \brief    Setup surface states for Vebox
@@ -808,7 +807,7 @@ public:
     virtual MOS_STATUS IsCmdParamsValid(
         const mhw::vebox::VEBOX_STATE_PAR           &veboxStateCmdParams,
         const mhw::vebox::VEB_DI_IECP_PAR           &veboxDiIecpCmdParams,
-        const VP_VEBOX_SURFACE_STATE_CMD_PARAMS  &VeboxSurfaceStateCmdParams);
+        const VPHAL_VEBOX_SURFACE_STATE_CMD_PARAMS  &VeboxSurfaceStateCmdParams);
 
     virtual MOS_STATUS QueryStatLayout(
         VEBOX_STAT_QUERY_TYPE QueryType,
@@ -970,7 +969,7 @@ protected:
     //!
     virtual MOS_STATUS RenderVeboxCmd(
         MOS_COMMAND_BUFFER                      *CmdBuffer,
-        VP_VEBOX_SURFACE_STATE_CMD_PARAMS    &VeboxSurfaceStateCmdParams,
+        VPHAL_VEBOX_SURFACE_STATE_CMD_PARAMS    &VeboxSurfaceStateCmdParams,
         MHW_VEBOX_SURFACE_STATE_CMD_PARAMS      &MhwVeboxSurfaceStateCmdParams,
         MHW_MI_FLUSH_DW_PARAMS                  &FlushDwParams,
         PRENDERHAL_GENERIC_PROLOG_PARAMS        pGenericPrologParams);
@@ -1001,7 +1000,7 @@ protected:
       PMOS_COMMAND_BUFFER                 pCmdBuffer);
 
     virtual MOS_STATUS InitVeboxSurfaceStateCmdParams(
-        PVP_VEBOX_SURFACE_STATE_CMD_PARAMS    pVpHalVeboxSurfaceStateCmdParams,
+        PVPHAL_VEBOX_SURFACE_STATE_CMD_PARAMS    pVpHalVeboxSurfaceStateCmdParams,
         PMHW_VEBOX_SURFACE_STATE_CMD_PARAMS      pMhwVeboxSurfaceStateCmdParams);
 
     virtual MOS_STATUS InitVeboxSurfaceParams(
@@ -1109,7 +1108,6 @@ protected:
     virtual MOS_STATUS SetupHDRLuts(
         mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
     virtual MOS_STATUS Init3DLutTable(PVP_SURFACE surf3DLut);
-    void    UpdateCpPrepareResources();
     MOS_STATUS SetupVebox3DLutForHDR(
         mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
 

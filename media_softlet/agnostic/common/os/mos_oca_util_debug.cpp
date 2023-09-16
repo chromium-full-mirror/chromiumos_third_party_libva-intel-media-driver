@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2022-2023, Intel Corporation
+* Copyright (c) 2022, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -24,8 +24,7 @@
 //! \brief    OCA Util Debug
 //!
 #if !EMUL
-#include "mos_oca_util_debug.h"
-#include "mos_os_trace_event.h"
+#include "mos_interface.h"
 
 void OcaOnMosCriticalMessage(const PCCHAR functionName, int32_t lineNum)
 {
@@ -40,7 +39,7 @@ void OcaOnMosCriticalMessage(const PCCHAR functionName, int32_t lineNum)
         if (8 == subStrLen)
         {
             MT_PARAM param[] = {{MT_FUNC_NAME, *(int64_t*)subStr}};
-            OcaRtLogSectionMgr::InsertRTLog(MOS_OCA_RTLOG_COMPONENT_COMMON, isErr, MT_ERR_CRITICAL_MESSAGE, 1, param);
+            MosInterface::InsertRTLog(nullptr, MOS_OCA_RTLOG_COMPONENT_COMMON, isErr, MT_ERR_CRITICAL_MESSAGE, 1, param);
             subStr += subStrLen;
             subStrLen = 0;
         }
@@ -54,11 +53,11 @@ void OcaOnMosCriticalMessage(const PCCHAR functionName, int32_t lineNum)
             name |= ((uint64_t)subStr[i] << (i * 8));
         }
         MT_PARAM param[] = {{MT_FUNC_NAME, name}};
-        OcaRtLogSectionMgr::InsertRTLog(MOS_OCA_RTLOG_COMPONENT_COMMON, isErr, MT_ERR_CRITICAL_MESSAGE, 1, param);
+        MosInterface::InsertRTLog(nullptr, MOS_OCA_RTLOG_COMPONENT_COMMON, isErr, MT_ERR_CRITICAL_MESSAGE, 1, param);
     }
 
     MT_PARAM param[] = {{MT_FUNC_LINE, lineNum}};
-    OcaRtLogSectionMgr::InsertRTLog(MOS_OCA_RTLOG_COMPONENT_COMMON, isErr, MT_ERR_CRITICAL_MESSAGE, 1, param);
+    MosInterface::InsertRTLog(nullptr, MOS_OCA_RTLOG_COMPONENT_COMMON, isErr, MT_ERR_CRITICAL_MESSAGE, 1, param);
 }
 
 #endif

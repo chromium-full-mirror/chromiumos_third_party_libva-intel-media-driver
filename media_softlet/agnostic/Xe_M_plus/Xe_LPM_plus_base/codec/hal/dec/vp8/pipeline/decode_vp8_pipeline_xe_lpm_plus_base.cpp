@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020-2023, Intel Corporation
+* Copyright (c) 2020-2022, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -115,21 +115,13 @@ MOS_STATUS Vp8PipelineXe_Lpm_Plus_Base::Execute()
 
 #if (_DEBUG || _RELEASE_INTERNAL)
             DECODE_CHK_STATUS(StatusCheck());
-#ifdef _MMC_SUPPORTED
-            if (m_mmcState != nullptr)
-            {
-                m_mmcState->ReportSurfaceMmcMode(&(m_basicFeature->m_destSurface));
-            }
-#endif
 #endif
             // Only update user features for the first frame.
             if (m_basicFeature->m_frameNum == 0)
             {
                 DECODE_CHK_STATUS(UserFeatureReport());
             }
-            
-            DecodeFrameIndex++;
-            m_basicFeature->m_frameNum = DecodeFrameIndex;
+            m_basicFeature->m_frameNum++;
 
             DECODE_CHK_STATUS(m_statusReport->Reset());
 
@@ -252,18 +244,21 @@ MOS_STATUS Vp8PipelineXe_Lpm_Plus_Base::DumpParams(Vp8BasicFeature &basicFeature
     m_debugInterface->m_secondField               = basicFeature.m_secondField;
     m_debugInterface->m_bufferDumpFrameNum        = basicFeature.m_frameNum;
 
-    DECODE_CHK_STATUS(DumpPicParams(basicFeature.m_vp8PicParams));
-    DECODE_CHK_STATUS(DumpSliceParams(basicFeature.m_vp8SliceParams));
-    DECODE_CHK_STATUS(DumpIQParams(basicFeature.m_vp8IqMatrixParams));
-    DECODE_CHK_STATUS(DumpBitstream(&basicFeature.m_resDataBuffer.OsResource, basicFeature.m_dataSize, 0));
+    DECODE_CHK_STATUS(DumpPicParams(
+        basicFeature.m_vp8PicParams));
+
+    DECODE_CHK_STATUS(DumpIQParams(
+        basicFeature.m_vp8IqMatrixParams));
 
     if (basicFeature.m_bitstreamLockingInUse)
     {
-        DECODE_CHK_STATUS(DumpCoefProbBuffer(&(basicFeature.m_resCoefProbBufferInternal->OsResource)));
+        DECODE_CHK_STATUS(DumpCoefProbBuffer(
+            &(basicFeature.m_resCoefProbBufferInternal->OsResource)));
     }
     else
     {
-        DECODE_CHK_STATUS(DumpCoefProbBuffer(&(basicFeature.m_resCoefProbBufferExternal)));
+        DECODE_CHK_STATUS(DumpCoefProbBuffer(
+            &(basicFeature.m_resCoefProbBufferExternal)));
     }
 
     return MOS_STATUS_SUCCESS;

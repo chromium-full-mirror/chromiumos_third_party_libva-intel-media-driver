@@ -34,8 +34,6 @@
 #include "mhw_impl.h"
 #include "mhw_mmio_xe_lpm_plus.h"
 
-#define MHW_MI_TEE_DEFAULT_WATCHDOG_THRESHOLD_IN_MS 200
-
 namespace mhw
 {
 namespace mi
@@ -272,22 +270,6 @@ public:
         return false;
     }
 
-    MOS_STATUS SetWatchdogTimerThresholdForTee()
-    {
-        MHW_FUNCTION_ENTER;
-        MHW_MI_CHK_NULL(this->m_osItf);
-        if (this->m_osItf->bMediaReset == false ||
-            this->m_osItf->umdMediaResetEnable == false)
-        {
-            return MOS_STATUS_SUCCESS;
-        }
-
-        MediaResetParam.watchdogCountThreshold = MHW_MI_TEE_DEFAULT_WATCHDOG_THRESHOLD_IN_MS;
-        GetWatchdogThreshold(this->m_osItf);
-
-        return MOS_STATUS_SUCCESS;
-    }
-
     MOS_STATUS SetWatchdogTimerThreshold(uint32_t frameWidth, uint32_t frameHeight, bool isEncoder) override
     {
         MEDIA_WA_TABLE *waTable = nullptr;
@@ -324,17 +306,22 @@ public:
         }
         else
         {
-            if ((frameWidth * frameHeight) >= (7680 * 4320))
+            if ((frameWidth * frameHeight) >= (16000 * 16000))
             {
-                MediaResetParam.watchdogCountThreshold = MHW_MI_DECODER_8K_WATCHDOG_THRESHOLD_IN_MS;
+                MediaResetParam.watchdogCountThreshold = MHW_MI_DECODER_16Kx16K_WATCHDOG_THRESHOLD_IN_MS;
             }
-            else if ((frameWidth * frameHeight) >= (3840 * 2160))
+            else if ((frameWidth * frameHeight) >= (7680 * 4320))
             {
-                MediaResetParam.watchdogCountThreshold = MHW_MI_DECODER_4K_WATCHDOG_THRESHOLD_IN_MS;
+                MediaResetParam.watchdogCountThreshold = MHW_MI_DECODER_16K_WATCHDOG_THRESHOLD_IN_MS;
+            }
+            else if (((frameWidth * frameHeight) < (1280 * 720)) && MEDIA_IS_WA(waTable, WaSliceMissingMB))
+            {
+                MediaResetParam.watchdogCountThreshold = MHW_MI_DECODER_720P_WATCHDOG_THRESHOLD_IN_MS;
             }
             else
             {
-                MediaResetParam.watchdogCountThreshold = MHW_MI_DECODER_720P_WATCHDOG_THRESHOLD_IN_MS;
+                // 60ms should be enough for decoder with resolution smaller than 8k
+                MediaResetParam.watchdogCountThreshold = MHW_MI_DEFAULT_WATCHDOG_THRESHOLD_IN_MS;
             }
         }
 
@@ -384,11 +371,6 @@ public:
             MediaResetParam.watchdogCountCtrlOffset      = WATCHDOG_COUNT_CTRL_OFFSET_VECS_XE_LPM_PLUS;
             MediaResetParam.watchdogCountThresholdOffset = WATCHDOG_COUNT_THRESTHOLD_OFFSET_VECS_XE_LPM_PLUS;
             break;
-            // TEE
-        case MOS_GPU_CONTEXT_TEE:
-            MediaResetParam.watchdogCountCtrlOffset      = WATCHDOG_COUNT_CTRL_OFFSET_TEECS_XE_LPM_PLUS;
-            MediaResetParam.watchdogCountThresholdOffset = WATCHDOG_COUNT_THRESTHOLD_OFFSET_TEECS_XE_LPM_PLUS;
-            break;
             // Default
         default:
             break;
@@ -422,10 +404,6 @@ public:
         //Configure Watchdog timer Threshold
         auto& par = MHW_GETPAR_F(MI_LOAD_REGISTER_IMM)();
         par = {};
-        if (gpuContext == MOS_GPU_CONTEXT_TEE)
-        {
-            MHW_MI_CHK_STATUS(SetWatchdogTimerThresholdForTee());
-        }
         par.dwData     = MHW_MI_WATCHDOG_COUNTS_PER_MILLISECOND * MediaResetParam.watchdogCountThreshold *
             (this->m_osItf->bSimIsActive ? 2 : 1);
         par.dwRegister = MediaResetParam.watchdogCountThresholdOffset;

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2023, Intel Corporation
+* Copyright (c) 2019, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -43,25 +43,12 @@ MOS_STATUS Av1VdencPipeline::Initialize(void *settings)
 {
     ENCODE_FUNC_CALL();
     ENCODE_CHK_STATUS_RETURN(Av1Pipeline::Initialize(settings));
-
-    // Init hwInterface
-    CodechalSetting *codecSettings = (CodechalSetting *)settings;
-    ENCODE_CHK_NULL_RETURN(m_hwInterface);
-    ENCODE_CHK_STATUS_RETURN(m_hwInterface->Initialize(codecSettings));
-
-    ENCODE_CHK_STATUS_RETURN(InitMmcState());
-
-    ENCODE_CHK_STATUS_RETURN(GetSystemVdboxNumber());
-
     return MOS_STATUS_SUCCESS;
 }
 
 MOS_STATUS Av1VdencPipeline::Uninitialize()
 {
     ENCODE_FUNC_CALL();
-
-    MOS_Delete(m_mmcState);
-    
     return Av1Pipeline::Uninitialize();
 }
 
@@ -131,13 +118,7 @@ MOS_STATUS Av1VdencPipeline::ActivateVdencVideoPackets()
 
         for (uint8_t curPipe = 0; curPipe < GetPipeNum(); curPipe++)
         {
-            // force immediate submit to false irrespective of single/multi task phase at pipe 0 when dual enc enabled
-            ENCODE_CHK_STATUS_RETURN(ActivatePacket(Av1VdencPacket, m_dualEncEnable && curPipe == 0 ? false : immediateSubmit, curPass, curPipe, GetPipeNum()));
-        }
-
-        if ((basicFeature->m_enableTileStitchByHW || !basicFeature -> m_enableSWStitching || brcFeature->IsBRCEnabled()) && m_dualEncEnable)
-        {
-            ENCODE_CHK_STATUS_RETURN(ActivatePacket(Av1PakIntegrate, immediateSubmit, curPass, 0));
+            ENCODE_CHK_STATUS_RETURN(ActivatePacket(Av1VdencPacket, immediateSubmit, curPass, curPipe, GetPipeNum()));
         }
 
         if (!basicFeature->m_enableSWBackAnnotation)
@@ -176,18 +157,8 @@ MOS_STATUS Av1VdencPipeline::SwitchContext(uint8_t outputChromaFormat, uint16_t 
     m_scalPars->enableVE = MOS_VE_SUPPORTED(m_osInterface);
 
     //force to disable scalability for AV1 VDENC
-    if(m_dualEncEnable)
-    {
-        m_scalPars->numVdbox = m_numVdbox;
-        m_scalPars->forceMultiPipe = true;
-        m_scalPars->allowSwArbitarySplit = true;
-    }
-    else
-    {
-        m_scalPars->numVdbox = 1;
-        m_scalPars->forceMultiPipe = false;
-        m_scalPars->allowSwArbitarySplit = false;
-    }
+    m_scalPars->numVdbox = 1;
+    m_scalPars->forceMultiPipe = false;
 
     m_scalPars->outputChromaFormat = outputChromaFormat;
 

@@ -315,13 +315,13 @@ MOS_TILE_TYPE VpGetTileTypeFromMediaTileType(uint32_t mediaTileType)
 
     switch(mediaTileType)
     {
-       case TILING_Y:
+       case I915_TILING_Y:
            tileType = MOS_TILE_Y;
            break;
-       case TILING_X:
+       case I915_TILING_X:
            tileType = MOS_TILE_X;
            break;
-       case TILING_NONE:
+       case I915_TILING_NONE:
            tileType = MOS_TILE_LINEAR;
            break;
         default:
@@ -1043,21 +1043,23 @@ DdiVp_SetProcPipelineParams(
     }
 #endif //(_DEBUG || _RELEASE_INTERNAL)
 
+    // Set stream type using pipeline_flags VA_PROC_PIPELINE_FAST flag
     // Currently we only support 1 primary surface in VP
-    if (pVpCtx->iPriSurfs < VP_MAX_PRIMARY_SURFS)
-    {
-        pVpHalSrcSurf->SurfType = SURF_IN_PRIMARY;
-        pVpCtx->iPriSurfs++;
-    }
-    else
+    if (pPipelineParam->pipeline_flags & VA_PROC_PIPELINE_FAST)
     {
         pVpHalSrcSurf->SurfType = SURF_IN_SUBSTREAM;
     }
-    
-    // Set workload path using pipeline_flags VA_PROC_PIPELINE_FAST flag
-    if (pPipelineParam->pipeline_flags & VA_PROC_PIPELINE_FAST)
+    else
     {
-        pVpHalRenderParams->bForceToRender = true;
+        if (pVpCtx->iPriSurfs < VP_MAX_PRIMARY_SURFS)
+        {
+            pVpHalSrcSurf->SurfType = SURF_IN_PRIMARY;
+            pVpCtx->iPriSurfs++;
+        }
+        else
+        {
+            pVpHalSrcSurf->SurfType = SURF_IN_SUBSTREAM;
+        }
     }
 
     // Set src rect

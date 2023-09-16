@@ -46,10 +46,10 @@ struct CodecMpeg2IqMatrix
 };
 
 //!
-//! \struct CodecDecodeMpeg2MbParams
+//! \struct CodecDecodeMpeg2MbParmas
 //! \brief  Mpeg2 MB parameter
 //!
-struct CodecDecodeMpeg2MbParams
+struct CodecDecodeMpeg2MbParmas
 {
     int32_t m_mbAddr;  //!< Macroblock address
     union

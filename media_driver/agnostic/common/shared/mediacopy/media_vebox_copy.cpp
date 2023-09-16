@@ -70,14 +70,26 @@ VeboxCopyState::VeboxCopyState(PMOS_INTERFACE osInterface, MhwInterfaces* mhwInt
     m_veboxInterface = mhwInterfaces->m_veboxInterface;
     m_miInterface = mhwInterfaces->m_miInterface;
     m_cpInterface = mhwInterfaces->m_cpInterface;
+
+    if (m_veboxInterface)
+    {
+        m_veboxItf = std::static_pointer_cast<mhw::vebox::Itf>(m_veboxInterface->GetNewVeboxInterface());
+    }
 }
 
 VeboxCopyState::~VeboxCopyState()
 {
     if (m_veboxInterface)
     {
+        if (m_veboxItf)
+        {
+            m_veboxItf->DestroyHeap();
+        }
+        else
+        {
             m_veboxInterface->DestroyHeap();
             m_veboxInterface = nullptr;
+        }
     }
 }
 
@@ -89,9 +101,57 @@ MOS_STATUS VeboxCopyState::Initialize()
 
     if (m_veboxInterface)
     {
-        if (m_veboxInterface->m_veboxHeap == nullptr)
+        GpuNodeLimit.bCpEnabled = (m_osInterface->osCpInterface->IsCpEnabled())? true : false;
+
+        if (m_veboxItf)
         {
-            m_veboxInterface->CreateHeap();
+            VEBOX_COPY_CHK_STATUS_RETURN(m_veboxItf->FindVeboxGpuNodeToUse(&GpuNodeLimit));
+
+            VeboxGpuNode = (MOS_GPU_NODE)(GpuNodeLimit.dwGpuNodeToUse);
+            VeboxGpuContext = (VeboxGpuNode == MOS_GPU_NODE_VE) ? MOS_GPU_CONTEXT_VEBOX : MOS_GPU_CONTEXT_VEBOX2;
+
+            // Create VEBOX/VEBOX2 Context
+            VEBOX_COPY_CHK_STATUS_RETURN(m_veboxItf->CreateGpuContext(
+                m_osInterface,
+                VeboxGpuContext,
+                VeboxGpuNode));
+
+            // Register Vebox GPU context with the Batch Buffer completion event
+            VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnRegisterBBCompleteNotifyEvent(
+                m_osInterface,
+                MOS_GPU_CONTEXT_VEBOX));
+
+            const MHW_VEBOX_HEAP* veboxHeap = nullptr;
+            m_veboxItf->GetVeboxHeapInfo(&veboxHeap);
+
+            if (veboxHeap == nullptr)
+            {
+                m_veboxItf->CreateHeap();
+            }
+        }
+        else
+        {
+            // Check GPU Node decide logic together in this function
+            VEBOX_COPY_CHK_STATUS_RETURN(m_veboxInterface->FindVeboxGpuNodeToUse(&GpuNodeLimit));
+
+            VeboxGpuNode = (MOS_GPU_NODE)(GpuNodeLimit.dwGpuNodeToUse);
+            VeboxGpuContext = (VeboxGpuNode == MOS_GPU_NODE_VE) ? MOS_GPU_CONTEXT_VEBOX : MOS_GPU_CONTEXT_VEBOX2;
+
+            // Create VEBOX/VEBOX2 Context
+            VEBOX_COPY_CHK_STATUS_RETURN(m_veboxInterface->CreateGpuContext(
+                m_osInterface,
+                VeboxGpuContext,
+                VeboxGpuNode));
+
+            // Register Vebox GPU context with the Batch Buffer completion event
+            VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnRegisterBBCompleteNotifyEvent(
+                m_osInterface,
+                MOS_GPU_CONTEXT_VEBOX));
+
+            if (m_veboxInterface->m_veboxHeap == nullptr)
+            {
+                m_veboxInterface->CreateHeap();
+            }
         }
     }
     return MOS_STATUS_SUCCESS;
@@ -138,19 +198,14 @@ MOS_STATUS VeboxCopyState::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE dst)
     veboxInterface = m_veboxInterface;
 
     MOS_GPUCTX_CREATOPTIONS_ENHANCED      createOption = {};
+
     // no gpucontext will be created if the gpu context has been created before.
     VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnCreateGpuContext(
         m_osInterface,
         MOS_GPU_CONTEXT_VEBOX,
         MOS_GPU_NODE_VE,
         &createOption));
-
     VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnSetGpuContext(m_osInterface, MOS_GPU_CONTEXT_VEBOX));
- 
-    // Register Vebox GPU context with the Batch Buffer completion event
-    VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnRegisterBBCompleteNotifyEvent(
-        m_osInterface,
-        MOS_GPU_CONTEXT_VEBOX));
 
     // Sync on Vebox Input Resource, Ensure the input is ready to be read
     // Currently, MOS RegisterResourcere cannot sync the 3d resource.
@@ -177,7 +232,7 @@ MOS_STATUS VeboxCopyState::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE dst)
 
     // preprocess in cp first
     m_osInterface->osCpInterface->PrepareResources((void **)&surfaceArray, sizeof(surfaceArray) / sizeof(PMOS_RESOURCE), nullptr, 0);
-    m_osInterface->pfnSetPerfTag(m_osInterface,VEBOX_COPY);
+
     // initialize the command buffer struct
     MOS_ZeroMemory(&cmdBuffer, sizeof(MOS_COMMAND_BUFFER));
 

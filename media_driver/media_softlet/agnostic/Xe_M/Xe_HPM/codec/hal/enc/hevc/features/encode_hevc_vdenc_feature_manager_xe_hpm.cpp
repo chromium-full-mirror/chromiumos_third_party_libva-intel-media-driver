@@ -58,10 +58,13 @@ MOS_STATUS EncodeHevcVdencFeatureManagerXe_Hpm::CheckFeatures(void* params)
         static_cast<PCODEC_HEVC_ENCODE_PICTURE_PARAMS>(encodeParams->pPicParams);
     ENCODE_CHK_NULL_RETURN(hevcPicParams);
 
-    if (m_basicFeature->m_422State)
+#ifdef _ENCODE_RESERVED
+    if (m_basicFeature->m_rsvdState)
     {
-        ENCODE_CHK_STATUS_RETURN(m_basicFeature->m_422State->Init(hevcSeqParams, hevcPicParams));
+        ENCODE_CHK_STATUS_RETURN(m_basicFeature->m_rsvdState->Init(hevcSeqParams, hevcPicParams));
     }
+#endif
+
     if (MEDIA_IS_WA(waTable, WaEnableOnlyASteppingFeatures))
     {
         ENCODE_CHK_STATUS_RETURN(ValidateASteppingNotSupportedFeatures(hevcSeqParams, hevcPicParams));

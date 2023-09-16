@@ -102,7 +102,7 @@ namespace encode {
         //IV value computation
         statusReportData->hwCounterValue.IV = *(++hwcounter);
         statusReportData->hwCounterValue.IV = SwapEndianness(statusReportData->hwCounterValue.IV);
-        ENCODE_NORMALMESSAGE(
+        ENCODE_ASSERTMESSAGE(
             "encodeStatusReport->HWCounterValue.Count = 0x%llx, encodeStatusReport->HWCounterValue.IV = 0x%llx",
             statusReportData->hwCounterValue.Count,
             statusReportData->hwCounterValue.IV);

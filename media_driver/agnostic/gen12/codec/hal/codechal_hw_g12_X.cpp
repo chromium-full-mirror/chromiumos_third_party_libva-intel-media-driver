@@ -585,15 +585,8 @@ CodechalHwInterfaceG12::~CodechalHwInterfaceG12()
 
         if (m_renderHalCpInterface)
         {
-            if (m_osInterface)
-            {
-                m_osInterface->pfnDeleteMhwCpInterface(m_renderHalCpInterface);
-                m_renderHalCpInterface = nullptr;
-            }
-            else
-            {
-                MHW_ASSERTMESSAGE("Failed to destroy renderHalCpInterface.");
-            }
+            Delete_MhwCpInterface(m_renderHalCpInterface);
+            m_renderHalCpInterface = nullptr;
         }
     }
 

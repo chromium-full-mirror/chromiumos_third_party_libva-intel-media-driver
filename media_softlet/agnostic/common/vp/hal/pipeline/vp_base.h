@@ -127,7 +127,6 @@ struct _VP_MHWINTERFACE
     MOS_STATUS (*pfnCreateMultiPipe)(
     void *hwInterface, MediaContext *mediaContext, uint8_t componentType);
 
-    bool m_bIsMediaSfcInterfaceInUse = false;
 };
 
 using VP_MHWINTERFACE  = _VP_MHWINTERFACE;

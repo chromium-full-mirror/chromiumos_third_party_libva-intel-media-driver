@@ -317,8 +317,6 @@ MOS_STATUS MosUtilDebug::MosHLTInit(MediaUserSettingSharedPtr userSettingPtr)
     char                                        hltFileName[MOS_MAX_HLT_FILENAME_LEN] = {0};
     char                                        fileNamePrefix[MOS_MAX_HLT_FILENAME_LEN];
     int32_t                                     bUseHybridLogTrace = false;
-    int32_t                                     bEnableFlush = false;
-    int32_t                                     bEnableMemoryFootPrint = false;
     MOS_STATUS                                  eStatus = MOS_STATUS_SUCCESS;
 
     if (m_mosMsgParams.uiCounter != 0 )
@@ -327,49 +325,9 @@ MOS_STATUS MosUtilDebug::MosHLTInit(MediaUserSettingSharedPtr userSettingPtr)
         return MOS_STATUS_UNKNOWN;
     }
 
-    
-    eStatus = ReadUserSetting(
-        userSettingPtr,
-        bEnableFlush,
-        __MOS_USER_FEATURE_KEY_FLUSH_LOG_FILE_BEFORE_SUBMISSION,
-        MediaUserSetting::Group::Device);
-
-
-    ReportUserSetting(
-        userSettingPtr,
-        __MOS_USER_FEATURE_KEY_FLUSH_LOG_FILE_BEFORE_SUBMISSION,
-        bEnableFlush,
-        MediaUserSetting::Group::Device);
-
-    if (!bEnableFlush)
-    {
-        MOS_OS_NORMALMESSAGE("HLT flush is not enabled.");
-    }
-
     m_mosMsgParams.bUseHybridLogTrace = false;
     m_mosMsgParams.pLogFile           = nullptr;
     m_mosMsgParams.pTraceFile         = nullptr;
-    m_mosMsgParams.bEnableFlush       = bEnableFlush;
-
-    // disable memory foot print
-    eStatus = ReadUserSetting(
-        userSettingPtr,
-        bEnableMemoryFootPrint,
-        __MOS_USER_FEATURE_KEY_ENABLE_MEMORY_FOOT_PRINT,
-        MediaUserSetting::Group::Device);
-
-    ReportUserSetting(
-        userSettingPtr,
-        __MOS_USER_FEATURE_KEY_ENABLE_MEMORY_FOOT_PRINT,
-        bEnableMemoryFootPrint,
-        MediaUserSetting::Group::Device);
-
-    if (bEnableMemoryFootPrint)
-    {
-        MOS_OS_NORMALMESSAGE("Mos memory foot print is enabled.");
-    }
-
-    m_mosMsgParams.bEnableMemoryFootPrint = bEnableMemoryFootPrint;
 
     // Check if HLT should be enabled.
     eStatus = ReadUserSetting(
@@ -561,43 +519,6 @@ void MosUtilDebug::MosMessageClose()
     {
         m_mosMsgParams.uiCounter--;
     }
-}
-
-void MosUtilDebug::MosHLTFlush()
-{
-    if (!m_mosMsgParams.bEnableFlush)
-    {
-        return;
-    }
-
-    MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
-    if (m_mosMsgParams.pLogFile != nullptr)
-    {
-#if COMMON_DLL_SEPARATION_SUPPORT
-        // Every DLL has its own C Runtime (CRT),
-        // and fflush is not safe across dlls.
-        // When common dll separation is enabled, We should call back into common dll for all DDI dlls.
-        MosUtilities::MosFlushToFileInCommon(m_mosMsgParams.pLogFile);
-#else
-        fflush(m_mosMsgParams.pLogFile);
-#endif
-    }
-    if (m_mosMsgParams.pTraceFile != nullptr)
-    {
-#if COMMON_DLL_SEPARATION_SUPPORT
-        // Every DLL has its own C Runtime (CRT),
-        // and fflush is not safe across dlls.
-        // When common dll separation is enabled, We should call back into common dll for all DDI dlls.
-        MosUtilities::MosFlushToFileInCommon(m_mosMsgParams.pTraceFile);
-#else
-        fflush(m_mosMsgParams.pTraceFile);
-#endif
-    }
-}
-
-bool MosUtilDebug::EnableMemoryFootPrint()
-{
-    return m_mosMsgParams.bEnableMemoryFootPrint;
 }
 
 void MosUtilDebug::MosMessage(

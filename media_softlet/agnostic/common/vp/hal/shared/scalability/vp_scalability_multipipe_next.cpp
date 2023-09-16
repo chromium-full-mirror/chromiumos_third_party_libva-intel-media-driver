@@ -142,16 +142,7 @@ MOS_STATUS VpScalabilityMultiPipeNext::Initialize(const MediaScalabilityOption &
     SCALABILITY_CHK_NULL_RETURN(vpScalabilityOption);
     m_scalabilityOption = vpScalabilityOption;
 
-    if (m_hwInterface->m_bIsMediaSfcInterfaceInUse)
-    {
-        m_frameTrackingEnabled = false;
-        VP_PUBLIC_NORMALMESSAGE("Media Frame Tracking is disabled for Media Sfc Interface enalbed.");
-    }
-    else
-    {
-        m_frameTrackingEnabled = m_osInterface->bEnableKmdMediaFrameTracking ? true : false;
-        VP_PUBLIC_NORMALMESSAGE("Media Frame Tracking flag is %d. Not using Meida Sfc Interface.", m_frameTrackingEnabled);
-    }
+    m_frameTrackingEnabled = m_osInterface->bEnableKmdMediaFrameTracking ? true : false;
 
     //virtual engine init with scalability
     MOS_VIRTUALENGINE_INIT_PARAMS veInitParms;
@@ -161,15 +152,13 @@ MOS_STATUS VpScalabilityMultiPipeNext::Initialize(const MediaScalabilityOption &
     veInitParms.ucMaxNumPipesInUse             = vpScalabilityOption->GetMaxMultiPipeNum();
     veInitParms.ucMaxNumOfSdryCmdBufInOneFrame = veInitParms.ucMaxNumPipesInUse;
 
-    if (m_osInterface->apoMosEnabled)
-    {
-        SCALABILITY_CHK_NULL_RETURN(m_osInterface->osStreamState);
-        m_osInterface->osStreamState->component = COMPONENT_VPCommon;
-        SCALABILITY_CHK_STATUS_RETURN(m_osInterface->pfnVirtualEngineInit(m_osInterface, &m_veHitParams, veInitParms));
-        m_veState = m_osInterface->osStreamState->virtualEngineInterface;
-        SCALABILITY_CHK_NULL_RETURN(m_veState);
-        SCALABILITY_CHK_NULL_RETURN(m_veHitParams);
-    }
+    SCALABILITY_CHK_NULL_RETURN(m_osInterface->osStreamState);
+    m_osInterface->osStreamState->component = COMPONENT_VPCommon;
+
+    SCALABILITY_CHK_STATUS_RETURN(m_osInterface->pfnVirtualEngineInit(m_osInterface, &m_veHitParams, veInitParms));
+    m_veState = m_osInterface->osStreamState->virtualEngineInterface;
+    SCALABILITY_CHK_NULL_RETURN(m_veState);
+    SCALABILITY_CHK_NULL_RETURN(m_veHitParams);
 
     m_pipeNum = m_scalabilityOption->GetNumPipe();
     m_pipeIndexForSubmit = m_pipeNum;

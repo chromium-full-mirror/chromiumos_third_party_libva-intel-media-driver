@@ -71,7 +71,6 @@ public:
     SwFilter *GetSwFilter(FeatureType type);
     MOS_STATUS AddSwFilterOrdered(SwFilter *swFilter, bool useNewSwFilterSet);
     MOS_STATUS AddSwFilterUnordered(SwFilter *swFilter);
-    MOS_STATUS AddFeatureGraphRTLog();
     bool IsEmpty()
     {
         bool ret = false;
@@ -169,8 +168,7 @@ public:
     MOS_STATUS AddSurface(VP_SURFACE *&surf, bool isInputSurface, uint32_t index);
     MOS_STATUS Update(VP_EXECUTE_CAPS *caps = nullptr);
     uint32_t GetSurfaceCount(bool isInputSurface);
-    MOS_STATUS  AddRTLog();
-    MOS_STATUS  AddFeatureGraphRTLog(bool isInputPipe, uint32_t pipeIndex);
+
     bool IsAllInputPipeEmpty();
     bool IsAllInputPipeSurfaceFeatureEmpty();
     bool IsAllInputPipeSurfaceFeatureEmpty(std::vector<int> &layerIndexes);

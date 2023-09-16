@@ -154,9 +154,4 @@ MOS_STATUS BufferQueue::DestoryResource(void* resource)
     return MOS_STATUS_SUCCESS;
 }
 
-void BufferQueue::SetResourceType(ResourceType resType)
-{ 
-    m_resourceType = resType; 
-}
-
 }

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2011-2023, Intel Corporation
+* Copyright (c) 2011-2021, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -616,7 +616,7 @@ MOS_STATUS CodechalDecode::Allocate (CodechalSetting * codecHalSettings)
 
     if (codecHalSettings->secureMode)
     {
-        m_secureDecoder = m_osInterface->pfnCreateSecureDecodeInterface(codecHalSettings, m_hwInterface);
+        m_secureDecoder = Create_SecureDecodeInterface(codecHalSettings, m_hwInterface);
     }
 
 #ifdef _DECODE_PROCESSING_SUPPORTED
@@ -868,15 +868,8 @@ CodechalDecode::~CodechalDecode()
 {
     CODECHAL_DECODE_FUNCTION_ENTER;
 
-    if (m_osInterface)
-    {
-        m_osInterface->pfnDeleteSecureDecodeInterface(m_secureDecoder);
-        m_secureDecoder = nullptr;
-    }
-    else
-    {
-        CODECHAL_DECODE_ASSERTMESSAGE("Failed to destroy secureDecoder.");
-    }
+    Delete_SecureDecodeInterface(m_secureDecoder);
+    m_secureDecoder = nullptr;
 
     if (m_mmc)
     {
@@ -898,10 +891,7 @@ CodechalDecode::~CodechalDecode()
     if (MEDIA_IS_SKU(m_skuTable, FtrVcs2) && (m_videoGpuNode < MOS_GPU_NODE_MAX))
     {
         // Destroy decode video node association
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDestroyVideoNodeAssociation(m_osInterface, m_videoGpuNode);
-        }
+        m_osInterface->pfnDestroyVideoNodeAssociation(m_osInterface, m_videoGpuNode);
     }
 
     if (m_statusQueryReportingEnabled)
@@ -1909,7 +1899,7 @@ MOS_STATUS CodechalDecode::GetStatusReport(
                 {
                     // BB_END data not written. Media reset might have occurred.
                     CODECHAL_DECODE_NORMALMESSAGE("Media reset may have occured.");
-                    codecStatus[j].m_codecStatus = CODECHAL_STATUS_RESET;
+                    codecStatus[j].m_codecStatus = CODECHAL_STATUS_ERROR;
                 }
 
                 if (m_standard == CODECHAL_HEVC)

@@ -26,23 +26,16 @@
 
 #include "encode_av1_basic_feature_xe_lpm_plus_base.h"
 #include "encode_av1_vdenc_const_settings_xe_lpm_plus_base.h"
-#include "encode_av1_superres.h"
 
 namespace encode
 {
 
-MOS_STATUS Av1BasicFeatureXe_Lpm_Plus_Base::Update(void *params)
+MHW_SETPAR_DECL_SRC(VDENC_CMD2, Av1BasicFeatureXe_Lpm_Plus_Base)
 {
-    ENCODE_FUNC_CALL();
-    ENCODE_CHK_NULL_RETURN(params);
-    Av1BasicFeature::Update(params);
+    ENCODE_CHK_STATUS_RETURN(Av1BasicFeature::MHW_SETPAR_F(VDENC_CMD2)(params));
 
-    Av1SuperRes *superResFeature = dynamic_cast<Av1SuperRes *>(m_featureManager->GetFeature(Av1FeatureIDs::av1SuperRes));
-    ENCODE_CHK_NULL_RETURN(superResFeature);
-    if (superResFeature->IsEnabled())
-    {
-        m_rawSurfaceToEnc = superResFeature->GetRawSurfaceToEnc();
-    }
+    //lossless issue fix
+    params.qpPrimeYDc = (uint8_t)CodecHal_Clip3(0, 255, m_av1PicParams->base_qindex + m_av1PicParams->y_dc_delta_q);
 
     return MOS_STATUS_SUCCESS;
 }

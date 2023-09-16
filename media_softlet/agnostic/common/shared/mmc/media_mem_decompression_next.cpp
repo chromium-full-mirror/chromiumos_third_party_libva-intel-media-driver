@@ -53,15 +53,8 @@ MediaMemDeCompNext::~MediaMemDeCompNext()
 
     if (m_cpInterface)
     {
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
-            m_cpInterface = nullptr;
-        }
-        else
-        {
-            VPHAL_MEMORY_DECOMP_ASSERTMESSAGE("Failed to destroy cpInterface.");
-        }
+        Delete_MhwCpInterface(m_cpInterface);
+        m_cpInterface = nullptr;
     }
 
     if (m_osInterface)
@@ -120,9 +113,7 @@ MOS_STATUS MediaMemDeCompNext::MemoryDecompress(PMOS_RESOURCE targetResource)
 
 MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy(PMOS_RESOURCE inputResource, PMOS_RESOURCE outputResource, bool outputCompressed)
 {
-    MOS_STATUS eStatus             = MOS_STATUS_SUCCESS;
-    bool       bValidInputSurface  = false;
-    bool       bValidOutputSurface = false;
+    MOS_STATUS                          eStatus = MOS_STATUS_SUCCESS;
 
     MHW_FUNCTION_ENTER;
 
@@ -205,8 +196,8 @@ MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy(PMOS_RESOURCE inputResource, PMOS
                 break;
             }
             // This resource is a series of bytes. Is not 2 dimensional.
-            uint32_t sizeSrcMain    = sourceSurface.dwSize;
-            uint32_t sizeTargetMain = targetSurface.dwSize;
+            uint32_t sizeSrcMain = sourceSurface.dwWidth;
+            uint32_t sizeTargetMain = targetSurface.dwWidth;
             eStatus = MOS_SecureMemcpy(lockedTarAddr, sizeTargetMain, lockedSrcAddr, sizeSrcMain);
             m_osInterface->pfnUnlockResource(m_osInterface, &sourceSurface.OsResource);
             m_osInterface->pfnUnlockResource(m_osInterface, &targetSurface.OsResource);
@@ -234,14 +225,6 @@ MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy(PMOS_RESOURCE inputResource, PMOS
         return eStatus;
     }
 
-    //Check whether surface is valid, or it will cause page fault
-    m_osInterface->pfnVerifyMosSurface(&sourceSurface, bValidInputSurface);
-    m_osInterface->pfnVerifyMosSurface(&targetSurface, bValidOutputSurface);
-    if (!bValidInputSurface || !bValidOutputSurface)
-    {
-        VPHAL_MEMORY_DECOMP_CHK_STATUS_RETURN(MOS_STATUS_INVALID_PARAMETER);
-    }
-
     //Get context before proceeding
     auto gpuContext = m_osInterface->CurrentGpuContextOrdinal;
 
@@ -267,9 +250,7 @@ MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy(PMOS_RESOURCE inputResource, PMOS
 
 MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy2D(PMOS_RESOURCE inputResource, PMOS_RESOURCE outputResource, uint32_t copyWidth, uint32_t copyHeight, uint32_t copyInputOffset, uint32_t copyOutputOffset, uint32_t bpp, bool outputCompressed)
 {
-    MOS_STATUS eStatus             = MOS_STATUS_SUCCESS;
-    bool       bValidInputSurface  = false;
-    bool       bValidOutputSurface = false;
+    MOS_STATUS                          eStatus = MOS_STATUS_SUCCESS;
 
     MHW_FUNCTION_ENTER;
 
@@ -353,14 +334,6 @@ MOS_STATUS MediaMemDeCompNext::MediaMemoryCopy2D(PMOS_RESOURCE inputResource, PM
     sourceSurface.dwHeight = copyHeight;
     targetSurface.dwWidth = copyWidth / pixelInByte;
     targetSurface.dwHeight = copyHeight;
-
-    //Check whether surface is valid, or it will cause page fault
-    m_osInterface->pfnVerifyMosSurface(&sourceSurface, bValidInputSurface);
-    m_osInterface->pfnVerifyMosSurface(&targetSurface, bValidOutputSurface);
-    if (!bValidInputSurface || !bValidOutputSurface)
-    {
-        VPHAL_MEMORY_DECOMP_CHK_STATUS_RETURN(MOS_STATUS_INVALID_PARAMETER);
-    }
 
     // Sync for Vebox write
     m_osInterface->pfnSyncOnResource(

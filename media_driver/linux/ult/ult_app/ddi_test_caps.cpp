@@ -56,7 +56,6 @@ int Test_QueryConfigProfiles(VADriverContextP ctx, vector<FeatureID> &queriedFea
     int ret = ctx->vtable->vaQueryConfigProfiles(ctx, profile_list, &num_profiles);
     if (ret)
     {
-        free(profile_list);
         return -1;
     }
 
@@ -71,7 +70,6 @@ int Test_QueryConfigProfiles(VADriverContextP ctx, vector<FeatureID> &queriedFea
         }
         else if (ret)
         {
-            free(profile_list);
             return -1;
         }
         else
@@ -82,8 +80,6 @@ int Test_QueryConfigProfiles(VADriverContextP ctx, vector<FeatureID> &queriedFea
             }
         }
     }
-
-    free(profile_list);
 
     return ret;
 }

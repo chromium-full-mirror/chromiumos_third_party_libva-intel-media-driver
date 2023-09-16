@@ -72,31 +72,16 @@ public:
         MHW_FUNCTION_ENTER;
 
         MHW_MI_CHK_NULL(avpBufSizeParam);
+
+        uint32_t sbPerFrmWid        = avpBufSizeParam->width;
+        uint32_t sbPerFrmHgt        = avpBufSizeParam->height;
+        uint32_t sbPerTileWid       = avpBufSizeParam->tileWidth;
+        uint32_t bufferSize         = 0;
+        uint32_t totalSbPerFrame    = sbPerFrmWid * sbPerFrmHgt;
+        uint32_t index              = (uint32_t)bufferType;
+        uint32_t maxCuPerSB         = avpBufSizeParam->isSb128x128 ? 256 : 64;
+
         MHW_ASSERT(avpBufSizeParam->bitDepthIdc == 0 || avpBufSizeParam->bitDepthIdc == 1);
-
-        uint32_t bufferSize = 0;
-
-        MHW_MI_CHK_STATUS(CalculateBufferSize(bufferType, avpBufSizeParam, avpBufferSize, avpBufferSizeExt, bufferSize));
-
-        avpBufSizeParam->bufferSize = bufferSize * MHW_CACHELINE_SIZE;
-
-        return MOS_STATUS_SUCCESS;
-    }
-
-    MOS_STATUS CalculateBufferSize(AvpBufferType    bufferType,
-                                   AvpBufferSizePar *avpBufSizeParam,
-                                   const uint8_t    avpBufferSizeTbl[][2][2],
-                                   const uint8_t    avpBufferSizeExtTbl[][2][2],
-                                   uint32_t         &bufferSize)
-    {
-        MHW_FUNCTION_ENTER;
-
-        uint32_t sbPerFrmWid     = avpBufSizeParam->width;
-        uint32_t sbPerFrmHgt     = avpBufSizeParam->height;
-        uint32_t sbPerTileWid    = avpBufSizeParam->tileWidth;
-        uint32_t totalSbPerFrame = sbPerFrmWid * sbPerFrmHgt;
-        uint32_t index           = (uint32_t)bufferType;
-        uint32_t maxCuPerSB      = avpBufSizeParam->isSb128x128 ? 256 : 64;
 
         switch (bufferType)
         {
@@ -107,11 +92,11 @@ public:
             case deblockLineYBuffer:
             case deblockLineUBuffer:
             case deblockLineVBuffer:
-                bufferSize = sbPerTileWid * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerTileWid * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
             case cdefLineBuffer:
-                bufferSize = sbPerTileWid * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
-                    + avpBufferSizeExtTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerTileWid * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
+                    + avpBufferSizeExt[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
                 //Tile storage - tile line buffers, Total CLs = (#CLs_per_SB * num_of_SB_per_row) = (#CLs_per_SB * num_of_SB_per_frame_width)
             case bsdTileLineBuffer:
@@ -120,17 +105,17 @@ public:
             case deblockTileLineYBuffer:
             case deblockTileLineUBuffer:
             case deblockTileLineVBuffer:
-                bufferSize = sbPerFrmWid * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerFrmWid * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
                 //Tile storage - tile column buffers, Total CLs = (#CLs_per_SB * num_of_SB_per_column) = (#CLs_per_SB * num_of_SB_per_frame_height)
             case deblockTileColYBuffer:
             case deblockTileColUBuffer:
             case deblockTileColVBuffer:
-                bufferSize = sbPerFrmHgt * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerFrmHgt * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
                 // Tile storage, per tile number
             case cdefTopLeftCornerBuffer:
-                bufferSize = avpBufSizeParam->curFrameTileNum * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = avpBufSizeParam->curFrameTileNum;
                 break;
             case cdefMetaTileLineBuffer:
                 bufferSize = avpBufSizeParam->numTileCol;
@@ -144,8 +129,8 @@ public:
                 break;
                 // Tile storage, - tile line buffers, with extra size
             case cdefTileLineBuffer:
-                bufferSize = sbPerFrmWid * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
-                    + avpBufferSizeExtTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerFrmWid * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
+                    + avpBufferSizeExt[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
                 // Tile storage, - tile column buffers, with extra size
             case cdefTileColBuffer:
@@ -157,8 +142,8 @@ public:
             case lrTileColUBuffer:
             case lrTileColVBuffer:
             case lrMetaTileColBuffer:
-                bufferSize = sbPerFrmHgt * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
-                    + avpBufferSizeExtTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerFrmHgt * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
+                    + avpBufferSizeExt[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
                 //frame buffer
             case segmentIdBuffer:
@@ -193,16 +178,18 @@ public:
                 break;
             case lrTileColAlignBuffer:
             case fgTileColBuffer:
-                bufferSize = sbPerFrmHgt * avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
-                    + avpBufferSizeExtTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = sbPerFrmHgt * avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128] 
+                    + avpBufferSizeExt[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
             case fgSampleTmpBuffer:
-                bufferSize = avpBufferSizeTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
-                    + avpBufferSizeExtTbl[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
+                bufferSize = avpBufferSize[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128]
+                    + avpBufferSizeExt[index][avpBufSizeParam->bitDepthIdc][avpBufSizeParam->isSb128x128];
                 break;
             default:
                 return MOS_STATUS_INVALID_PARAMETER;
         }
+
+        avpBufSizeParam->bufferSize = bufferSize * MHW_CACHELINE_SIZE;
 
         return MOS_STATUS_SUCCESS;
     }
@@ -410,6 +397,60 @@ private:
         return MOS_STATUS_SUCCESS;
     }
 
+    MOS_STATUS GetRowstoreCachingAddrs() override
+    {
+        //BTDL
+        if (m_btdlRowstoreCache.supported)
+        {
+            m_btdlRowstoreCache.enabled     = true;
+            m_btdlRowstoreCache.dwAddress   = 0;
+        }
+
+        //SMVL
+        if (m_smvlRowstoreCache.supported)
+        {
+            m_smvlRowstoreCache.enabled     = true;
+            m_smvlRowstoreCache.dwAddress   = 128;
+        }
+
+        //IPDL
+        if (m_ipdlRowstoreCache.supported)
+        {
+            m_ipdlRowstoreCache.enabled     = true;
+            m_ipdlRowstoreCache.dwAddress   = 384;
+        }
+
+        //DFLY
+        if (m_dflyRowstoreCache.supported)
+        {
+            m_dflyRowstoreCache.enabled     = true;
+            m_dflyRowstoreCache.dwAddress   = 640;
+        }
+
+        //DFLU
+        if (m_dfluRowstoreCache.supported)
+        {
+            m_dfluRowstoreCache.enabled     = true;
+            m_dfluRowstoreCache.dwAddress   = 1344;
+        }
+
+        //DFLV
+        if (m_dflvRowstoreCache.supported)
+        {
+            m_dflvRowstoreCache.enabled     = true;
+            m_dflvRowstoreCache.dwAddress   = 1536;
+        }
+
+        //CDEF
+        if (m_cdefRowstoreCache.supported)
+        {
+            m_cdefRowstoreCache.enabled     = true;
+            m_cdefRowstoreCache.dwAddress   = 1728;
+        }
+
+        return MOS_STATUS_SUCCESS;
+    }
+
     //AVP internal buffer size table [buffer_index][bitdepthIdc][IsSb128x128]
     const uint8_t avpBufferSize[avpInternalBufferMax][2][2] =
     {
@@ -513,6 +554,7 @@ protected:
         MHW_FUNCTION_ENTER;
 
         InitRowstoreUserFeatureSettings();
+        GetRowstoreCachingAddrs(); // Move to CodecHW in the future.
         InitMmioRegisters();
     }
 
@@ -538,60 +580,6 @@ protected:
         }
 #endif
 
-    }
-
-    MOS_STATUS GetRowstoreCachingAddrs(mhw::vdbox::avp::AvpVdboxRowStorePar rowstoreParams) override
-    {
-        //BTDL
-        if (m_btdlRowstoreCache.supported)
-        {
-            m_btdlRowstoreCache.enabled   = true;
-            m_btdlRowstoreCache.dwAddress = 0;
-        }
-
-        //SMVL
-        if (m_smvlRowstoreCache.supported)
-        {
-            m_smvlRowstoreCache.enabled   = true;
-            m_smvlRowstoreCache.dwAddress = 128;
-        }
-
-        //IPDL
-        if (m_ipdlRowstoreCache.supported)
-        {
-            m_ipdlRowstoreCache.enabled   = true;
-            m_ipdlRowstoreCache.dwAddress = 384;
-        }
-
-        //DFLY
-        if (m_dflyRowstoreCache.supported)
-        {
-            m_dflyRowstoreCache.enabled   = true;
-            m_dflyRowstoreCache.dwAddress = 640;
-        }
-
-        //DFLU
-        if (m_dfluRowstoreCache.supported)
-        {
-            m_dfluRowstoreCache.enabled   = true;
-            m_dfluRowstoreCache.dwAddress = 1344;
-        }
-
-        //DFLV
-        if (m_dflvRowstoreCache.supported)
-        {
-            m_dflvRowstoreCache.enabled   = true;
-            m_dflvRowstoreCache.dwAddress = 1536;
-        }
-
-        //CDEF
-        if (m_cdefRowstoreCache.supported)
-        {
-            m_cdefRowstoreCache.enabled   = true;
-            m_cdefRowstoreCache.dwAddress = 1728;
-        }
-
-        return MOS_STATUS_SUCCESS;
     }
 
     // Programming Note: CodecHAL layer must add MFX wait command
@@ -1741,7 +1729,7 @@ protected:
             resourceParams.dwOffset        = 0;
             resourceParams.pdwCmd          = (cmd.OriginalUncompressedPictureSourceBufferAddress.DW0_1.Value);
             resourceParams.dwLocationInCmd = _MHW_CMD_DW_LOCATION(OriginalUncompressedPictureSourceBufferAddress);
-            resourceParams.bIsWritable     = false;
+            resourceParams.bIsWritable     = true;
 
             InitMocsParams(resourceParams, &cmd.OriginalUncompressedPictureSourceBufferAddressAttributes.DW0.Value, 1, 6);
 
@@ -1767,7 +1755,7 @@ protected:
             resourceParams.dwOffset        = 0;
             resourceParams.pdwCmd          = (cmd.DownscaledUncompressedPictureSourceBufferAddress.DW0_1.Value);
             resourceParams.dwLocationInCmd = _MHW_CMD_DW_LOCATION(DownscaledUncompressedPictureSourceBufferAddress);
-            resourceParams.bIsWritable     = false;
+            resourceParams.bIsWritable     = true;
 
             InitMocsParams(resourceParams, &cmd.DownscaledUncompressedPictureSourceBufferAddressAttributes.DW0.Value, 1, 6);
 

@@ -51,16 +51,12 @@
 class MediaUserSettingsMgr;
 
 class MosMutex;
-typedef uint64_t REGHANDLE;
-typedef struct _EVENT_DESCRIPTOR EVENT_DESCRIPTOR;
-typedef const EVENT_DESCRIPTOR* PCEVENT_DESCRIPTOR;
-typedef struct _EVENT_DATA_DESCRIPTOR EVENT_DATA_DESCRIPTOR;
-
+#if COMMON_DLL_SEPARATION_SUPPORT
 namespace CommonLib
 {
     class MosCallback;
 }
-
+#endif
 class MosUtilities
 {
 public:
@@ -71,8 +67,9 @@ public:
     MOS_FUNC_EXPORT static int32_t MosGetMemNinjaCounter();
     MOS_FUNC_EXPORT static int32_t MosGetMemNinjaCounterGfx();
 
+#if COMMON_DLL_SEPARATION_SUPPORT
     friend class CommonLib::MosCallback;
-
+    
     //!
     //! \brief    Set trace setup info
     //! \details  Set trace setup info
@@ -81,43 +78,7 @@ public:
     //!           else MOS_STATUS_SUCCESS
     //!
     static MOS_STATUS MosTraceSetupInfoInCommon(uint32_t DrvVer, uint32_t PlatFamily, uint32_t RenderFamily, uint32_t DeviceID);
-
-    //!
-    //! \brief    Callback funtion for C Runtime (CRT) fwrite
-    //! \details  Every DLL has its own CRT
-    //!           When we share CRT objects such as file handles, we should use callback function.
-    //! \param    [in] buf
-    //!           Content Buffer
-    //! \param    [in] size
-    //!           Element size
-    //! \param    [in] count
-    //!           Element count
-    //! \param    [in] file
-    //!           Pointer to file
-    //! \return   MOS_STATUS
-    //!           Returns one of the MOS_STATUS error codes if failed,
-    //!           else MOS_STATUS_SUCCESS
-    //!
-    static MOS_STATUS MosWriteFileInCommon(void const *buf, size_t size, size_t count, FILE *file);
-
-    //!
-    //! \brief    Callback funtion for C Runtime (CRT) fflush
-    //! \details  Every DLL has its own CRT
-    //!           When we share CRT objects such as file handles, we should use callback function.
-    //! \param    [in] file
-    //!           Pointer to file
-    //! \return   MOS_STATUS
-    //!           Returns one of the MOS_STATUS error codes if failed,
-    //!           else MOS_STATUS_SUCCESS
-    //!
-    static MOS_STATUS MosFlushToFileInCommon(FILE *file);
-
-    static MOS_STATUS MosEventWriteInCommon(
-        REGHANDLE regHandle,
-        PCEVENT_DESCRIPTOR eventDescriptor,
-        uint32_t userDataCount,
-        EVENT_DATA_DESCRIPTOR* userData);
-
+#endif
     //!
     //! \brief    Get current run time
     //! \details  Get current run time in us
@@ -125,24 +86,6 @@ public:
     //!           Returns time in us
     //!
     static double MosGetTime();
-
-    //!
-    //! \brief    Print CPU Allocate Memory
-    //! \details  Print CPU Allocate Memory
-    //! \return   MOS_STATUS
-    //!           Returns one of the MOS_STATUS error codes if failed,
-    //!           else MOS_STATUS_SUCCESS
-    static MOS_STATUS MosPrintCPUAllocateMemory(int32_t event_id, int32_t level, 
-        int32_t param_id_1, int64_t value_1, int32_t param_id_2, int64_t value_2, const char *funName, const char *fileName, int32_t line);
-
-    //!
-    //! \brief    Print CPU Destroy Memory
-    //! \details  Print CPU Destroy Memory
-    //! \return   MOS_STATUS
-    //!           Returns one of the MOS_STATUS error codes if failed,
-    //!           else MOS_STATUS_SUCCESS
-    static MOS_STATUS MosPrintCPUDestroyMemory(int32_t event_id, int32_t level, 
-        int32_t param_id_1, int64_t value_1, const char *funName, const char *fileName, int32_t line);
 
     //!
     //! \brief    Get current run time
@@ -239,7 +182,7 @@ private:
     //!           else MOS_STATUS_SUCCESS
     //!
     static MOS_STATUS MosOsUtilitiesInit(MediaUserSettingSharedPtr userSettingPtr);
-
+#if COMMON_DLL_SEPARATION_SUPPORT
     //!
     //! \brief    Init Mos os utilities in common dll
     //! \details  Init Mos os utilities in common dll
@@ -290,7 +233,7 @@ private:
     //!
     static MOS_STATUS MosInitAllocFailSimulateFlagInCommon(MediaUserSettingSharedPtr userSettingPtr);
 #endif
-
+#endif
     //!
     //! \brief    Init user feature
     //! \details  Initial MOS OS specific utilitiesNext related structures, and only execute once for multiple entries
@@ -2060,14 +2003,6 @@ public:
         int32_t       extFlags);
 #endif
 
-    static int32_t MosSwizzleOffsetWrapper(
-        int32_t         OffsetX,
-        int32_t         OffsetY,
-        int32_t         Pitch,
-        MOS_TILE_TYPE   TileFormat,
-        int32_t         CsxSwizzle,
-        int32_t         flags);
-
     //!
     //! \brief    Wrapper function for SwizzleOffset
     //! \details  Wrapper function for SwizzleOffset in Mos
@@ -2882,7 +2817,6 @@ public:
 
     //Temporarily defined as the reference to compatible with the cases using uf key to enable/disable APG.
     static int32_t                      *m_mosMemAllocCounter;
-    static int32_t                      *m_mosMemAllocIndex;
     static int32_t                      *m_mosMemAllocFakeCounter;
     static int32_t                      *m_mosMemAllocCounterGfx;
 #if (_DEBUG || _RELEASE_INTERNAL)
@@ -2911,19 +2845,6 @@ private:
 #endif
 MEDIA_CLASS_DEFINE_END(MosUtilities)
 };
-
-#if (_DEBUG || _RELEASE_INTERNAL)
-#define MEMORY_ALLOC_FAIL_SIMULATE_MODE_DEFAULT (0)
-#define MEMORY_ALLOC_FAIL_SIMULATE_MODE_RANDOM (1)
-#define MEMORY_ALLOC_FAIL_SIMULATE_MODE_TRAVERSE (2)
-
-#define MIN_MEMORY_ALLOC_FAIL_FREQ (1)      //max memory allcation fail rate 100%
-#define MAX_MEMORY_ALLOC_FAIL_FREQ (10000)  //min memory allcation fail rate 1/10000
-
-#define MosAllocMemoryFailSimulationEnabled                                        \
-    (m_mosAllocMemoryFailSimulateMode == MEMORY_ALLOC_FAIL_SIMULATE_MODE_RANDOM || \
-        m_mosAllocMemoryFailSimulateMode == MEMORY_ALLOC_FAIL_SIMULATE_MODE_TRAVERSE)
-#endif
 
 class MosMutex
 {
@@ -2980,15 +2901,6 @@ MEDIA_CLASS_DEFINE_END(MosMutex)
         "filename = \"%s\", line = %d/", MosUtilities::MosGetTime(), (MosUtilities::m_mosMemAllocCounterGfx ? *MosUtilities::m_mosMemAllocCounterGfx : 0), ptr, functionName, filename, line);             \
 
 #if MOS_MESSAGES_ENABLED
-#define PRINT_ALLOCATE_MEMORY(id, lvl, p1, v1, p2, v2, FunName, FileName, Line) MosUtilities::MosPrintCPUAllocateMemory(id, lvl, p1, v1, p2, v2, FunName, FileName, Line)
-#define PRINT_DESTROY_MEMORY(id, lvl, p1, v1, FunName, FileName, Line) MosUtilities::MosPrintCPUDestroyMemory(id, lvl, p1, v1, FunName, FileName, Line)
-#else
-#define PRINT_ALLOCATE_MEMORY(id, lvl, p1, v1, p2, v2, FunName, FileName, Line)
-#define PRINT_DESTROY_MEMORY(id, lvl, p1, v1, FunName, FileName, Line)
-#endif
-
-
-#if MOS_MESSAGES_ENABLED
 template<class _Ty, class... _Types> inline
 _Ty* MosUtilities::MosNewUtil(const char *functionName,
     const char *filename,
@@ -3010,10 +2922,6 @@ _Ty* MosUtilities::MosNewUtil(_Types&&... _Args)
     {
         MosAtomicIncrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_ALLOC_MESSAGE(ptr, sizeof(_Ty), functionName, filename, line);
-        PRINT_ALLOCATE_MEMORY(MT_MOS_ALLOCATE_MEMORY, MT_NORMAL,
-                MT_MEMORY_PTR, (int64_t)(ptr),
-                MT_MEMORY_SIZE, static_cast<int64_t>(sizeof(_Ty)),
-                functionName, filename, line);
     }
     else
     {
@@ -3049,10 +2957,6 @@ _Ty* MosUtilities::MosNewArrayUtil(size_t numElements)
     {
         MosAtomicIncrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_ALLOC_MESSAGE(ptr, numElements*sizeof(_Ty), functionName, filename, line);
-        PRINT_ALLOCATE_MEMORY(MT_MOS_ALLOCATE_MEMORY, MT_NORMAL,
-                MT_MEMORY_PTR, (int64_t)(ptr),
-                MT_MEMORY_SIZE, (static_cast<int64_t>(numElements))*(static_cast<int64_t>(sizeof(_Ty))),
-                functionName, filename, line);
     }
     return ptr;
 }
@@ -3073,9 +2977,6 @@ void MosUtilities::MosDeleteUtil(_Ty& ptr)
     {
         MosAtomicDecrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line);
-        PRINT_DESTROY_MEMORY(MT_MOS_DESTROY_MEMORY, MT_NORMAL,
-                MT_MEMORY_PTR, (int64_t)(ptr),
-                functionName, filename, line);
         delete(ptr);
         ptr = nullptr;
     }
@@ -3097,9 +2998,7 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
     {
         MosAtomicDecrement(m_mosMemAllocCounter);
         MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line);
-        PRINT_DESTROY_MEMORY(MT_MOS_DESTROY_MEMORY, MT_NORMAL,
-                MT_MEMORY_PTR, (int64_t)(ptr),
-                functionName, filename, line);
+
         delete[](ptr);
         ptr = nullptr;
     }
@@ -3133,7 +3032,6 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
             { \
                 MosUtilities::MosAtomicDecrement(MosUtilities::m_mosMemAllocCounter); \
                 MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line); \
-                PRINT_DESTROY_MEMORY(MT_MOS_DESTROY_MEMORY, MT_NORMAL, MT_MEMORY_PTR, (int64_t)(ptr), functionName, filename, line); \
                 delete(ptr); \
                 ptr = nullptr; \
             }
@@ -3154,7 +3052,6 @@ void MosUtilities::MosDeleteArrayUtil(_Ty& ptr)
         { \
             MosUtilities::MosAtomicDecrement(MosUtilities::m_mosMemAllocCounter); \
             MOS_MEMNINJA_FREE_MESSAGE(ptr, functionName, filename, line); \
-            PRINT_DESTROY_MEMORY(MT_MOS_DESTROY_MEMORY, MT_NORMAL, MT_MEMORY_PTR, (int64_t)(ptr), functionName, filename, line); \
             delete[](ptr); \
             ptr = nullptr; \
         }
@@ -3252,8 +3149,6 @@ do{                                                     \
 #define  Mos_SwizzleData(pSrc, pDst, SrcTiling, DstTiling, iHeight, iPitch, extFlags)   \
     MosUtilities::MosSwizzleData(pSrc, pDst, SrcTiling, DstTiling, iHeight, iPitch, extFlags)
 
-#define Mos_SwizzleOffsetWrapper(OffsetX, OffsetY, Pitch, TileFormat, CsxSwizzle, Flags)   \
-    MosUtilities::MosSwizzleOffsetWrapper(OffsetX, OffsetY, Pitch, TileFormat, CsxSwizzle, Flags)
 //------------------------------------------------------------------------------
 //  trace
 //------------------------------------------------------------------------------
@@ -3269,21 +3164,6 @@ inline void MOS_TraceEvent(
     uint32_t    dwSize2 = 0)
 {
     MosUtilities::MosTraceEvent(usId, ucType, pArg1, dwSize1, pArg2, dwSize2);
-}
-
-inline void MOS_TraceEvent(
-    MEDIA_EVENT_FILTER_KEYID key,
-    uint16_t                 usId,
-    uint8_t                  ucType,
-    const void              *pArg1,
-    uint32_t                 dwSize1,
-    const void              *pArg2   = nullptr,
-    uint32_t                 dwSize2 = 0)
-{
-    if (MosUtilities::TraceKeyEnabled(key))
-    {
-        MosUtilities::MosTraceEvent(usId, ucType, pArg1, dwSize1, pArg2, dwSize2);
-    }
 }
 
 inline void MOS_TraceEvent(
@@ -3309,19 +3189,6 @@ inline void MOS_TraceDataDump(
     uint32_t    dwSize)
 {
     MosUtilities::MosTraceDataDump(pcName, flags, pBuf, dwSize);
-}
-
-inline void MOS_TraceDataDump(
-    MEDIA_EVENT_FILTER_KEYID key,
-    const char              *pcName,
-    uint32_t                 flags,
-    const void              *pBuf,
-    uint32_t                 dwSize)
-{
-    if (MosUtilities::TraceKeyEnabled(TR_KEY_DATA_DUMP))
-    {
-        MosUtilities::MosTraceDataDump(pcName, flags, pBuf, dwSize);
-    }
 }
 
 inline void MOS_TraceDataDump(

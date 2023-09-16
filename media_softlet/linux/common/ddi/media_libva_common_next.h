@@ -32,8 +32,7 @@
 #include <va/va_backend.h>
 #include <semaphore.h>
 #include "GmmLib.h"
-#include "mos_bufmgr_api.h"
-#include "mos_defs_specific.h"
+#include "mos_bufmgr.h"
 
 #define DDI_MEDIA_MAX_SURFACE_NUMBER_CONTEXT       127
 #define DDI_MEDIA_MAX_INSTANCE_NUMBER              0x0FFFFFFF
@@ -80,7 +79,6 @@
 #define DDI_CODEC_VDENC_MAX_L1_REF_FRAMES_LDB      3
 #define DDI_CODEC_VDENC_MAX_L0_REF_FRAMES          3
 #define DDI_CODEC_VDENC_MAX_L1_REF_FRAMES          0
-#define DDI_CODEC_VDENC_MAX_L1_REF_FRAMES_RAB_AVC  1
 
 #define DDI_CODEC_FEI_MAX_NUM_MVPREDICTOR     4
 typedef pthread_mutex_t  MEDIA_MUTEX_T, *PMEDIA_MUTEX_T;

@@ -737,8 +737,11 @@ MOS_STATUS MediaDebugInterface::DumpBufferInHexDwords(uint8_t *data, uint32_t si
     uint32_t  i;
     for (i = 0; i < dwordSize; i++)
     {
-        ofs << std::hex << std::setw(8) << std::setfill('0') << +dwordData[i]
-            << ((i + 1) % 4 == 0 ? "\n" : " ");
+        ofs << std::hex << std::setw(8) << std::setfill('0') << +dwordData[i] << " ";
+        if (i % 4 == 3)
+        {
+            ofs << std::endl;
+        }
     }
 
     if (remainSize > 0)

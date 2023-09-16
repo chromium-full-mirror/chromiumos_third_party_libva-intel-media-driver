@@ -172,8 +172,6 @@ MOS_STATUS SwFilterCsc::Configure(VP_PIPELINE_PARAMS &params, bool isInputSurf, 
     m_Params.formatOutput           = surfOutput->Format;
     m_Params.input.chromaSiting     = surfInput->ChromaSiting;
     m_Params.output.chromaSiting    = surfOutput->ChromaSiting;
-    m_Params.input.tileMode         = surfInput->TileModeGMM;
-    m_Params.output.tileMode        = surfOutput->TileModeGMM;
     // Alpha should be handled in input pipe to avoid alpha data lost from image.
     m_Params.pAlphaParams           = params.pCompAlpha;
     // formatForCUS will be set on demand in Policy::GetCSCExecutionCapsBT2020ToRGB.
@@ -209,8 +207,6 @@ MOS_STATUS SwFilterCsc::Configure(PVP_SURFACE surfInput, PVP_SURFACE surfOutput,
         m_Params.input.colorSpace = surfInput->ColorSpace;
         m_Params.output.colorSpace = surfInput->ColorSpace;
 
-        m_Params.input.tileMode  = surfInput->osSurface->TileModeGMM;
-        m_Params.output.tileMode = surfOutput->osSurface->TileModeGMM;
         m_Params.formatInput = surfInput->osSurface->Format;
         // formatForCUS will be set on demand in Policy::GetCSCExecutionCapsBT2020ToRGB.
         m_Params.formatforCUS = Format_None;
@@ -230,8 +226,6 @@ MOS_STATUS SwFilterCsc::Configure(PVP_SURFACE surfInput, PVP_SURFACE surfOutput,
         // Skip CSC and only for chroma sitting purpose
         m_Params.input.colorSpace = m_Params.output.colorSpace = surfInput->ColorSpace;
         m_Params.formatInput = m_Params.formatOutput = surfInput->osSurface->Format;
-        m_Params.input.tileMode                      = surfInput->osSurface->TileModeGMM;
-        m_Params.output.tileMode                     = surfOutput->osSurface->TileModeGMM;
         // formatForCUS will be set on demand in Policy::GetCSCExecutionCapsBT2020ToRGB.
         m_Params.formatforCUS                        = Format_None;
         m_Params.input.chromaSiting                  = surfInput->ChromaSiting;
@@ -264,8 +258,6 @@ MOS_STATUS SwFilterCsc::Configure(VEBOX_SFC_PARAMS &params)
     }
     m_Params.input.colorSpace       = params.input.colorSpace;
     m_Params.output.colorSpace      = params.output.colorSpace;
-    m_Params.input.tileMode         = params.input.surface->TileModeGMM;
-    m_Params.output.tileMode        = params.output.surface->TileModeGMM;
     m_Params.pIEFParams             = nullptr;
     m_Params.formatInput            = params.input.surface->Format;
     // formatForCUS will be set on demand in Policy::GetCSCExecutionCapsBT2020ToRGB.
@@ -1451,11 +1443,7 @@ MOS_STATUS SwFilterHdr::HdrIsInputFormatSupported(
         pSrcSurface->Format == Format_NV12 ||
         pSrcSurface->Format == Format_P010 ||
         pSrcSurface->Format == Format_YUY2 ||
-        pSrcSurface->Format == Format_AYUV ||
-        pSrcSurface->Format == Format_Y410 ||
-        pSrcSurface->Format == Format_Y416 ||
-        pSrcSurface->Format == Format_Y210 ||
-        pSrcSurface->Format == Format_Y216)
+        pSrcSurface->Format == Format_AYUV)
     {
         *pbSupported = true;
         goto finish;
@@ -1536,12 +1524,6 @@ bool vp::SwFilterHdr::operator==(SwFilter &swFilter)
 MOS_STATUS vp::SwFilterHdr::Update(VP_SURFACE *inputSurf, VP_SURFACE *outputSurf, SwFilterSubPipe &pipe)
 {
     VP_FUNC_CALL();
-
-    if (m_Params.stage == HDR_STAGE_VEBOX_3DLUT_UPDATE)
-    {
-        VP_PUBLIC_NORMALMESSAGE("HDR 3DLUT Kernel path already update format, skip further update.");
-        return MOS_STATUS_SUCCESS;
-    }
 
     VP_PUBLIC_CHK_NULL_RETURN(inputSurf);
     VP_PUBLIC_CHK_NULL_RETURN(inputSurf->osSurface);
@@ -2204,20 +2186,6 @@ MOS_STATUS SwFilterSet::Update(VP_SURFACE *inputSurf, VP_SURFACE *outputSurf, Sw
     {
         VP_PUBLIC_CHK_NULL_RETURN(swFilter.second);
         VP_PUBLIC_CHK_STATUS_RETURN(swFilter.second->Update(inputSurf, outputSurf, pipe));
-    }
-    return MOS_STATUS_SUCCESS;
-}
-
-MOS_STATUS SwFilterSet::AddFeatureGraphRTLog()
-{
-    VP_FUNC_CALL();
-
-    for (auto swFilter : m_swFilters)
-    {
-        if (swFilter.second)
-        {
-            swFilter.second->AddFeatureGraphRTLog();
-        }
     }
     return MOS_STATUS_SUCCESS;
 }

@@ -44,15 +44,8 @@ CodechalHwInterfaceNextXe_Hpm::~CodechalHwInterfaceNextXe_Hpm()
 
         if (m_renderHalCpInterface)
         {
-            if (m_osInterface)
-            {
-                m_osInterface->pfnDeleteMhwCpInterface(m_renderHalCpInterface);
-                m_renderHalCpInterface = nullptr;
-            }
-            else
-            {
-                MHW_ASSERTMESSAGE("Failed to destroy renderHalCpInterface.");
-            }
+            Delete_MhwCpInterface(m_renderHalCpInterface);
+            m_renderHalCpInterface = nullptr;
         }
     }
 
@@ -211,8 +204,8 @@ MOS_STATUS CodechalHwInterfaceNextXe_Hpm::Initialize(
     }
     return eStatus;
 }
-#if USE_CODECHAL_DEBUG_TOOL
-MediaCopyBaseState *CodechalHwInterfaceNextXe_Hpm::CreateMediaCopy(PMOS_INTERFACE mosInterface)
+
+MediaCopyBaseState* CodechalHwInterfaceNextXe_Hpm::CreateMediaCopy(PMOS_INTERFACE mosInterface) 
 {
     CODECHAL_HW_FUNCTION_ENTER;
     MediaCopyBaseState *mediaCopy   = nullptr;
@@ -226,4 +219,3 @@ MediaCopyBaseState *CodechalHwInterfaceNextXe_Hpm::CreateMediaCopy(PMOS_INTERFAC
 
     return mediaCopy;
 }
-#endif

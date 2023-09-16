@@ -393,41 +393,6 @@ void HalOcaInterfaceNext::DumpVpKernelInfo(MOS_COMMAND_BUFFER &cmdBuffer, MOS_CO
 }
 
 //!
-//! \brief  Add vp kernel info to oca log section.
-//! \param  [in] cmdBuffer
-//!         Command buffer for current BB.
-//! \param  [in] mosContext
-//!         Reference to MOS_CONTEXT.
-//! \param  [in] pControlValues
-//!         Value of user features.
-//! \return void
-//!         No return value. Handle all exception inside the function.
-//!
-void HalOcaInterfaceNext::DumpVpUserFeautreControlInfo(MOS_COMMAND_BUFFER &cmdBuffer, MOS_CONTEXT_HANDLE mosContext, PMOS_OCA_LOG_USER_FEATURE_CONTROL_INFO pControlValues)
-{
-    MosOcaInterface      *pOcaInterface = &MosOcaInterfaceSpecific::GetInstance();
-    MOS_STATUS            status        = MOS_STATUS_SUCCESS;
-    MOS_OCA_BUFFER_HANDLE hOcaBuf       = 0;
-
-    if (nullptr == pOcaInterface || (hOcaBuf = GetOcaBufferHandle(cmdBuffer, mosContext)) == MOS_OCA_INVALID_BUFFER_HANDLE)
-    {
-        // Will come here for UMD_OCA not being enabled case.
-        return;
-    }
-
-    MOS_OCA_LOG_HEADER header                           = {};
-    header.type                                         = MOS_OCA_LOG_TYPE_VP_USER_FEATURE_CONTROL_INFO;
-    header.headerSize                                   = sizeof(MOS_OCA_LOG_HEADER);
-    header.dataSize                                     = sizeof(MOS_OCA_LOG_USER_FEATURE_CONTROL_INFO);
-
-    status = pOcaInterface->DumpDataBlock(hOcaBuf, (PMOS_CONTEXT)mosContext, (PMOS_OCA_LOG_HEADER)&header, pControlValues);
-    if (MOS_FAILED(status))
-    {
-        OnOcaError(mosContext, status, __FUNCTION__, __LINE__);
-    }
-}
-
-//!
 //! \brief  Add vphal parameters to oca log section.
 //! \param  [in] mosContext
 //!         Reference to MOS_CONTEXT.
@@ -541,15 +506,9 @@ void HalOcaInterfaceNext::AddRTLogReource(MOS_COMMAND_BUFFER &cmdBuffer,
     {
         return;
     }
-    osInterface.pfnGetRtLogResourceInfo(&osInterface, osResource, size);
+    osInterface.pfnGetRtLogResourceInfo(osInterface.osStreamState, osResource, size);
     
     MOS_LINUX_BO *bo = cmdBuffer.OsResource.bo;
-    if (bo == nullptr ||
-        bo->virt == nullptr ||
-        bo->size <= OCA_LOG_SECTION_SIZE_MAX)
-    {
-        return;
-    }
     OCA_LOG_SECTION_HEADER *header = (OCA_LOG_SECTION_HEADER *)((uint64_t)bo->virt + bo->size - OCA_LOG_SECTION_SIZE_MAX);
     if (header->magicNum != OCA_LOG_SECTION_MAGIC_NUMBER)
     {
@@ -583,10 +542,6 @@ void HalOcaInterfaceNext::AddRTLogReource(MOS_COMMAND_BUFFER &cmdBuffer,
 }
 
 void HalOcaInterfaceNext::DumpCpParam(MosOcaInterface &ocaInterface, MOS_OCA_BUFFER_HANDLE &ocaBufHandle, PMOS_CONTEXT mosCtx, void *pCpDumper)
-{
-}
-
-void HalOcaInterfaceNext::DumpCpIoMsg(MOS_COMMAND_BUFFER &cmdBuffer, MOS_CONTEXT_HANDLE mosContext, void *pCpDumper, int type)
 {
 }
 

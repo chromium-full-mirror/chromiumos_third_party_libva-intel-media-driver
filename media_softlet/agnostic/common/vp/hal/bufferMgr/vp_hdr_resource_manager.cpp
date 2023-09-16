@@ -133,8 +133,7 @@ MOS_STATUS VphdrResourceManager::AssignRenderResource(VP_EXECUTE_CAPS &caps, std
     dwWidth  = VPHAL_HDR_OETF_1DLUT_WIDTH;
     dwHeight = VPHAL_HDR_OETF_1DLUT_WIDTH;
 
-    size_t cnt = MOS_MIN(inputSurfaces.size(), VPHAL_MAX_HDR_INPUT_LAYER);
-    for (size_t i = 0; i < cnt; ++i)
+    for (size_t i = 0; i < VPHAL_MAX_HDR_INPUT_LAYER; ++i)
     {
         surfSetting.surfGroup.insert(std::make_pair((SurfaceType)(SurfaceTypeHdrInputLayer0 + i), inputSurfaces[i]));
 

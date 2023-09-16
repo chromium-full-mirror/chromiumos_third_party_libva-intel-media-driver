@@ -72,15 +72,8 @@ RenderCopyState:: ~RenderCopyState()
 
     if (m_cpInterface != nullptr)
     {
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
-            m_cpInterface = nullptr;
-        }
-        else
-        {
-            MCPY_ASSERTMESSAGE("Failed to destroy vpInterface.");
-        }
+        Delete_MhwCpInterface(m_cpInterface);
+        m_cpInterface = nullptr;
     }
 
     // Destroy Kernel DLL objects (cache, hash table, states)

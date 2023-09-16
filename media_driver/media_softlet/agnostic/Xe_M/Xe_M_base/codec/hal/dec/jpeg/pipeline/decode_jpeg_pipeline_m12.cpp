@@ -112,6 +112,7 @@ MOS_STATUS JpegPipelineM12::Initialize(void *settings)
     DECODE_CHK_STATUS(MediaPipeline::InitPlatform());
     DECODE_CHK_STATUS(MediaPipeline::CreateMediaCopyWrapper());
     DECODE_CHK_NULL(m_mediaCopyWrapper);
+    m_mediaCopyWrapper->CreateMediaCopyState();
 
     DECODE_CHK_NULL(m_waTable);
 
@@ -128,7 +129,7 @@ MOS_STATUS JpegPipelineM12::Initialize(void *settings)
         m_debugInterface = MOS_New(CodechalDebugInterface);
         DECODE_CHK_NULL(m_debugInterface);
         DECODE_CHK_STATUS(
-            m_debugInterface->Initialize(m_hwInterface, codecSettings->codecFunction, m_mediaCopyWrapper)););
+            m_debugInterface->Initialize(m_hwInterface, codecSettings->codecFunction, m_mediaCopyWrapper->GetMediaCopyState())););
 
     if (m_hwInterface->m_hwInterfaceNext)
     {
@@ -240,9 +241,6 @@ MOS_STATUS JpegPipelineM12::InitContext()
     m_mediaContext->SwitchContext(VdboxDecodeFunc, &scalPars, &m_scalability);
     DECODE_CHK_NULL(m_scalability);
 
-    if (scalPars.disableScalability)
-        m_osInterface->pfnSetMultiEngineEnabled(m_osInterface, COMPONENT_Decode, false);
-
     return MOS_STATUS_SUCCESS;
 }
 
@@ -322,8 +320,7 @@ MOS_STATUS JpegPipelineM12::Execute()
 
             if (m_basicFeature->m_secondField || CodecHal_PictureIsFrame(m_basicFeature->m_curRenderPic))
             {
-                DecodeFrameIndex++;
-                m_basicFeature->m_frameNum = DecodeFrameIndex;
+                m_basicFeature->m_frameNum++;
             }
 
             DECODE_CHK_STATUS(m_statusReport->Reset());
@@ -384,11 +381,14 @@ MOS_STATUS JpegPipelineM12::DumpParams(JpegBasicFeature &basicFeature)
     m_debugInterface->m_secondField        = basicFeature.m_secondField;
     m_debugInterface->m_bufferDumpFrameNum = basicFeature.m_frameNum;
 
+    //dump bitstream
+    DECODE_CHK_STATUS(m_debugInterface->DumpBuffer(
+        &basicFeature.m_resDataBuffer.OsResource, CodechalDbgAttr::attrDecodeBitstream, "_DEC", basicFeature.m_dataSize, 0, CODECHAL_NUM_MEDIA_STATES));
+
     DECODE_CHK_STATUS(DumpPicParams(basicFeature.m_jpegPicParams));
     DECODE_CHK_STATUS(DumpScanParams(basicFeature.m_jpegScanParams));
     DECODE_CHK_STATUS(DumpHuffmanTable(basicFeature.m_jpegHuffmanTable));
     DECODE_CHK_STATUS(DumpIQParams(basicFeature.m_jpegQMatrix));
-    DECODE_CHK_STATUS(DumpBitstream(&basicFeature.m_resDataBuffer.OsResource, basicFeature.m_dataSize, 0));
 
     return MOS_STATUS_SUCCESS;
 }

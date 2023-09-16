@@ -75,7 +75,7 @@ namespace decode
         //! \return MOS_STATUS
         //!         MOS_STATUS_SUCCESS if success, else fail reason
         //!
-        virtual MOS_STATUS ErrorDetectAndConceal();
+        MOS_STATUS ErrorDetectAndConceal();
 
         //!
         //! \brief    Initialize one of AV1 Decode frame context buffers with default values
@@ -156,7 +156,7 @@ namespace decode
         MOS_STATUS SetSegmentData(CodecAv1PicParams &picParams);
         MOS_STATUS GetDecodeTargetFormat(MOS_FORMAT &format);
         virtual MOS_STATUS CheckProfileAndSubsampling();
-        MOS_STATUS CheckBitdepth();
+
         //!
         //! \brief    Calculate global motion params
         //! \return   MOS_STATUS

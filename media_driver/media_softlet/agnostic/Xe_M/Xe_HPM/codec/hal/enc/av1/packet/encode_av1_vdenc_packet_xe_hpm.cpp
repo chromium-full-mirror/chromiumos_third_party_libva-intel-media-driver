@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023, Intel Corporation
+* Copyright (c) 2019, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -20,22 +20,17 @@
 * OTHER DEALINGS IN THE SOFTWARE.
 */
 //!
-//! \file     mos_oca_rtlog_mgr_base.cpp
-//! \brief    OCA buffer manager class
+//! \file     encode_av1_vdenc_packet_xe_hpm.cpp
+//! \brief    Defines the interface for av1 encode vdenc packet of Xe_HPM
 //!
+#include "encode_av1_vdenc_packet_xe_hpm.h"
+#include "mhw_vdbox_avp_hwcmd_xe_hpm.h"
 
-#include "mos_oca_rtlog_mgr_base.h"
-#include "oca_rtlog_section_mgr.h"
-#include "mos_context_specific_next.h"
-
-bool MosOcaRTLogMgrBase::m_enableOcaRTLog = true;
-MosMutex MosOcaRTLogMgrBase::s_ocaMutex;
-
-/****************************************************************************************************/
-/*                                      MosOcaRTLogMgrBase                                          */
-/****************************************************************************************************/
-
-int32_t MosOcaRTLogMgrBase::GetGlobleIndex()
+namespace encode
 {
-    return MosUtilities::MosAtomicIncrement(&m_globleIndex);
+    Av1VdencPktXe_Hpm::~Av1VdencPktXe_Hpm()
+    {
+
+    }
+
 }

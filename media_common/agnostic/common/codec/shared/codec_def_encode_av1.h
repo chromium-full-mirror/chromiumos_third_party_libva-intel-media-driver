@@ -51,8 +51,6 @@
 #define AV1_TX_MODE_ONLY_4X4_SUPPORTED 0x01
 #define AV1_TX_MODE_LARGEST_SUPPORTED 0x02
 #define AV1_TX_MODE_SELECT_SUPPORTED 0x04
-#define AV1_MAX_NUM_OF_BATCH_BUFFER 5
-#define AV1_MAX_NUM_OF_SEGMENTS 8
 constexpr uint32_t TILE_SIZE_BYTES = 4;
 const uint8_t OBU_LEB128_SIZE  = 4;
 const uint8_t LEB128_BYTE_MASK = 0x7f;
@@ -149,19 +147,12 @@ typedef struct _CODEC_AV1_ENCODE_SEQUENCE_PARAMS
     {
         struct
         {
-            uint32_t    enable_order_hint           : 1;
-            uint32_t    enable_superres             : 1;
-            uint32_t    enable_cdef                 : 1;
-            uint32_t    enable_restoration          : 1;
-            uint32_t    enable_warped_motion        : 1;    //[0]
-            uint32_t    enable_filter_intra         : 1;
-            uint32_t    enable_intra_edge_filter    : 1;
-            uint32_t    enable_interintra_compound  : 1;
-            uint32_t    enable_masked_compound      : 1;
-            uint32_t    enable_dual_filter          : 1;
-            uint32_t    enable_jnt_comp             : 1;
-            uint32_t    enable_ref_frame_mvs        : 1;
-            uint32_t    Reserved3                   : 20;
+            uint32_t    enable_order_hint       : 1;
+            uint32_t    enable_superres         : 1;
+            uint32_t    enable_cdef             : 1;
+            uint32_t    enable_restoration      : 1;
+            uint32_t    enable_warped_motion    : 1;    //[0]
+            uint32_t    Reserved3               : 27;
         } fields;
         uint32_t    value;
     } CodingToolFlags;
@@ -442,7 +433,6 @@ typedef struct _CODEC_AV1_ENCODE_PACKEDHEADER_DATA
 #define MAX_TLEVEL  16
 #define AV1_NUM_OF_REF_LF_DELTAS 8
 #define AV1_NUM_OF_MODE_LF_DELTAS 2
-#define AV1_NUM_OF_DUAL_CTX 2
 struct EncodeAv1Par
 {
 

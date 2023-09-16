@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2023, Intel Corporation
+* Copyright (c) 2019-2021, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -108,16 +108,15 @@ namespace decode {
 
         if (inputParameters)
         {
-            m_statusReportData[submitIndex].codecStatus        = CODECHAL_STATUS_UNAVAILABLE;
+            m_statusReportData[submitIndex].codecStatus = CODECHAL_STATUS_UNAVAILABLE;
             m_statusReportData[submitIndex].statusReportNumber = inputParameters->statusReportFeedbackNumber;
-            m_statusReportData[submitIndex].currDecodedPic     = inputParameters->currOriginalPic;
-            m_statusReportData[submitIndex].currDecodedPicRes  = inputParameters->currDecodedPicRes;     
+            m_statusReportData[submitIndex].currDecodedPic = inputParameters->currOriginalPic;
+            m_statusReportData[submitIndex].currDecodedPicRes = inputParameters->currDecodedPicRes;
 #if (_DEBUG || _RELEASE_INTERNAL)
             m_statusReportData[submitIndex].currSfcOutputSurface = inputParameters->sfcOutputSurface;
-            m_statusReportData[submitIndex].currHistogramOutBuf  = inputParameters->histogramOutputBuf;
-            m_statusReportData[submitIndex].frameType            = inputParameters->pictureCodingType;
-            m_statusReportData[submitIndex].secondField          = inputParameters->isSecondField;
-            m_statusReportData[submitIndex].currFgOutputPicRes   = inputParameters->fgOutputPicRes;
+            m_statusReportData[submitIndex].currHistogramOutBuf = inputParameters->histogramOutputBuf;
+            m_statusReportData[submitIndex].frameType = inputParameters->pictureCodingType;
+            m_statusReportData[submitIndex].currFgOutputPicRes = inputParameters->fgOutputPicRes;
 #endif
         }
 
@@ -242,7 +241,7 @@ namespace decode {
         }
         else if (!completed)
         {
-            statusReportData->codecStatus = CODECHAL_STATUS_RESET;
+            statusReportData->codecStatus = CODECHAL_STATUS_ERROR;
             DECODE_ASSERTMESSAGE("Media reset may have occured.");
         }
         else

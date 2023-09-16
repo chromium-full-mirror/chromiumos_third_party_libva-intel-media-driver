@@ -130,12 +130,8 @@ bool CmEventExBase::LogTimestamps(const char *callerFunctionName, int callerLine
     {
         return false;
     }
-    CmLogger* logTmp = CmLogger::GetInstance(m_cmhal);
-    if(logTmp != nullptr)
-    {
-        logTmp->Print(CM_LOG_LEVEL_DEBUG, __FILE__,
+    CmLogger::GetInstance(m_cmhal).Print(CM_LOG_LEVEL_DEBUG, __FILE__,
                                          callerLineNumber, log_stream.str());
-    }
 #endif  // #if CM_LOG_ON
     return true;
 }

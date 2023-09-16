@@ -83,22 +83,6 @@ MOS_STATUS SwFilterSubPipe::Update(VP_SURFACE *inputSurf, VP_SURFACE *outputSurf
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS SwFilterSubPipe::AddFeatureGraphRTLog()
-{
-    VP_FUNC_CALL();
-
-    for (auto &featureSet : m_OrderedFilters)
-    {
-        if (featureSet)
-        {
-            VP_PUBLIC_CHK_STATUS_RETURN(featureSet->AddFeatureGraphRTLog());
-        }
-    }
-    VP_PUBLIC_CHK_STATUS_RETURN(m_UnorderedFilters.AddFeatureGraphRTLog());
-
-    return MOS_STATUS_SUCCESS;
-}
-
 SwFilter *SwFilterSubPipe::GetSwFilter(FeatureType type)
 {
     VP_FUNC_CALL();
@@ -1150,85 +1134,4 @@ bool SwFilterPipe::IsAllInputPipeSurfaceFeatureEmpty(std::vector<int> &layerInde
     }
 
     return true;
-}
-
-MOS_STATUS SwFilterPipe::AddRTLog()
-{
-    VP_FUNC_CALL();
-
-    uint32_t i = 0;
-    MT_LOG1(MT_VP_FEATURE_GRAPH_GET_RENDERTARGETTYPE, MT_NORMAL, MT_VP_FEATURE_GRAPH_RENDERTARGETTYPE, GetRenderTargetType())
-    MT_LOG1(MT_VP_FEATURE_GRAPH_INPUTSWFILTER, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)m_InputPipes.size());
-    for (i = 0; i < m_InputPipes.size(); ++i)
-    {
-        VP_PUBLIC_CHK_STATUS_RETURN(AddFeatureGraphRTLog(true, i));
-    }
-    MT_LOG1(MT_VP_FEATURE_GRAPH_OUTPUTSWFILTER, MT_NORMAL, MT_VP_FEATURE_GRAPH_FILTER_SWFILTERPIPE_COUNT, (int64_t)m_OutputPipes.size());
-    for (i = 0; i < m_OutputPipes.size(); ++i)
-    {
-        VP_PUBLIC_CHK_STATUS_RETURN(AddFeatureGraphRTLog(false, i));
-    }
-
-    return MOS_STATUS_SUCCESS;
-}
-
-MOS_STATUS SwFilterPipe::AddFeatureGraphRTLog(bool isInputPipe, uint32_t pipeIndex)
-{
-    VP_FUNC_CALL();
-
-    // Always use index 0 for the pipe whose pipeIndex not being specified.
-    auto inputPipe  = m_InputPipes.size() > 0 ? (isInputPipe ? m_InputPipes[pipeIndex] : m_InputPipes[0]) : nullptr;
-    auto outputPipe = m_OutputPipes.size() > 0 ? (isInputPipe ? m_OutputPipes[0] : m_OutputPipes[pipeIndex]) : nullptr;
-
-    // Input surface/pipe may be empty for some feature.
-    if (isInputPipe)
-    {
-        MT_LOG7(MT_VP_FEATURE_GRAPH_INPUT_SURFACE_INFO, MT_NORMAL, MT_VP_FEATURE_GRAPH_SURFACE_WIDTH, m_InputSurfaces[pipeIndex]->osSurface->dwWidth, MT_VP_FEATURE_GRAPH_SURFACE_HEIGHT, m_InputSurfaces[pipeIndex]->osSurface->dwHeight, MT_VP_FEATURE_GRAPH_SURFACE_PITCH, m_InputSurfaces[pipeIndex]->osSurface->dwPitch, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_LEFT, m_InputSurfaces[pipeIndex]->rcSrc.left, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_TOP, m_InputSurfaces[pipeIndex]->rcSrc.top, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_RIGHT, m_InputSurfaces[pipeIndex]->rcSrc.right, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_BOTTOM, m_InputSurfaces[pipeIndex]->rcSrc.bottom);
-        MT_LOG7(MT_VP_FEATURE_GRAPH_INPUT_SURFACE_INFO, MT_NORMAL, MT_VP_FEATURE_GRAPH_SURFACE_COLORSPACE, m_InputSurfaces[pipeIndex]->ColorSpace, MT_VP_FEATURE_GRAPH_SURFACE_FORMAT, m_InputSurfaces[pipeIndex]->osSurface->Format, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_LEFT, m_InputSurfaces[pipeIndex]->rcDst.left, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_TOP, m_InputSurfaces[pipeIndex]->rcDst.top, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_RIGHT, m_InputSurfaces[pipeIndex]->rcDst.right, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_BOTTOM, m_InputSurfaces[pipeIndex]->rcDst.bottom, MT_VP_FEATURE_GRAPH_SURFACE_ALLOCATIONHANDLE, static_cast<int64_t>(m_InputSurfaces[pipeIndex]->GetAllocationHandle(m_vpInterface.GetHwInterface()->m_osInterface)));
-        VP_PUBLIC_NORMALMESSAGE(
-            "Feature Graph: Input Surface: dwWidth %d, dwHeight %d, dwPitch %d, ColorSpace %d, Format %d, \
-            rcSrc.left %d, rcSrc.top %d, rcSrc.right %d, rcSrc.bottom %d, \
-            rcDst.left %d, rcDst.top %d, rcDst.right %d, rcDst.bottom %d, surface allocationhandle %d",
-            m_InputSurfaces[pipeIndex]->osSurface->dwWidth,
-            m_InputSurfaces[pipeIndex]->osSurface->dwHeight,
-            m_InputSurfaces[pipeIndex]->osSurface->dwPitch,
-            m_InputSurfaces[pipeIndex]->ColorSpace,
-            m_InputSurfaces[pipeIndex]->osSurface->Format,
-            m_InputSurfaces[pipeIndex]->rcSrc.left,
-            m_InputSurfaces[pipeIndex]->rcSrc.top,
-            m_InputSurfaces[pipeIndex]->rcSrc.right,
-            m_InputSurfaces[pipeIndex]->rcSrc.bottom,
-            m_InputSurfaces[pipeIndex]->rcDst.left,
-            m_InputSurfaces[pipeIndex]->rcDst.top,
-            m_InputSurfaces[pipeIndex]->rcDst.right,
-            m_InputSurfaces[pipeIndex]->rcDst.bottom,
-            m_InputSurfaces[pipeIndex]->GetAllocationHandle(m_vpInterface.GetHwInterface()->m_osInterface));
-        VP_PUBLIC_CHK_STATUS_RETURN(inputPipe->AddFeatureGraphRTLog());
-    }
-    else
-    {
-        MT_LOG7(MT_VP_FEATURE_GRAPH_OUTPUT_SURFACE_INFO, MT_NORMAL, MT_VP_FEATURE_GRAPH_SURFACE_WIDTH, m_OutputSurfaces[pipeIndex]->osSurface->dwWidth, MT_VP_FEATURE_GRAPH_SURFACE_HEIGHT, m_OutputSurfaces[pipeIndex]->osSurface->dwHeight, MT_VP_FEATURE_GRAPH_SURFACE_PITCH, m_OutputSurfaces[pipeIndex]->osSurface->dwPitch, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_LEFT, m_OutputSurfaces[pipeIndex]->rcSrc.left, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_TOP, m_OutputSurfaces[pipeIndex]->rcSrc.top, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_RIGHT, m_OutputSurfaces[pipeIndex]->rcSrc.right, MT_VP_FEATURE_GRAPH_SURFACE_RCSRC_BOTTOM, m_OutputSurfaces[pipeIndex]->rcSrc.bottom);
-        MT_LOG7(MT_VP_FEATURE_GRAPH_OUTPUT_SURFACE_INFO, MT_NORMAL, MT_VP_FEATURE_GRAPH_SURFACE_COLORSPACE, m_OutputSurfaces[pipeIndex]->ColorSpace, MT_VP_FEATURE_GRAPH_SURFACE_FORMAT, m_OutputSurfaces[pipeIndex]->osSurface->Format, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_LEFT, m_OutputSurfaces[pipeIndex]->rcDst.left, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_TOP, m_OutputSurfaces[pipeIndex]->rcDst.top, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_RIGHT, m_OutputSurfaces[pipeIndex]->rcDst.right, MT_VP_FEATURE_GRAPH_SURFACE_RCDST_BOTTOM, m_OutputSurfaces[pipeIndex]->rcDst.bottom, MT_VP_FEATURE_GRAPH_SURFACE_ALLOCATIONHANDLE, static_cast<int64_t>(m_OutputSurfaces[pipeIndex]->GetAllocationHandle(m_vpInterface.GetHwInterface()->m_osInterface)));
-        VP_PUBLIC_NORMALMESSAGE(
-            "Feature Graph: Output Surface: dwWidth %d, dwHeight %d, dwPitch %d, ColorSpace %d, Format %d, \
-            rcSrc.left %d, rcSrc.top %d, rcSrc.right %d, rcSrc.bottom %d, \
-            rcDst.left %d, rcDst.top %d, rcDst.right %d, rcDst.bottom %d, surface allocationhandle %d",
-            m_OutputSurfaces[pipeIndex]->osSurface->dwWidth,
-            m_OutputSurfaces[pipeIndex]->osSurface->dwHeight,
-            m_OutputSurfaces[pipeIndex]->osSurface->dwPitch,
-            m_OutputSurfaces[pipeIndex]->ColorSpace,
-            m_OutputSurfaces[pipeIndex]->osSurface->Format,
-            m_OutputSurfaces[pipeIndex]->rcSrc.left,
-            m_OutputSurfaces[pipeIndex]->rcSrc.top,
-            m_OutputSurfaces[pipeIndex]->rcSrc.right,
-            m_OutputSurfaces[pipeIndex]->rcSrc.bottom,
-            m_OutputSurfaces[pipeIndex]->rcDst.left,
-            m_OutputSurfaces[pipeIndex]->rcDst.top,
-            m_OutputSurfaces[pipeIndex]->rcDst.right,
-            m_OutputSurfaces[pipeIndex]->rcDst.bottom,
-            m_OutputSurfaces[pipeIndex]->GetAllocationHandle(m_vpInterface.GetHwInterface()->m_osInterface));
-        VP_PUBLIC_CHK_STATUS_RETURN(outputPipe->AddFeatureGraphRTLog());
-    }
-
-    return MOS_STATUS_SUCCESS;
 }

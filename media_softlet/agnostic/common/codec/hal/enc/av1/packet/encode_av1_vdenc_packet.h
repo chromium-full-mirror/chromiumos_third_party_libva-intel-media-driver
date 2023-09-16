@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2023, Intel Corporation
+* Copyright (c) 2019-2022, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -225,7 +225,6 @@ protected:
     //!           MOS_STATUS_SUCCESS if success, else fail reason
     //!
     virtual MOS_STATUS CalculateAvpCommandsSize();
-    virtual MOS_STATUS AddPictureVdencCommands(MOS_COMMAND_BUFFER &cmdBuffer);
 
 #if USE_CODECHAL_DEBUG_TOOL
     //! \brief    Dump the output resources in status report callback function
@@ -298,8 +297,6 @@ protected:
 
     MOS_STATUS ReadPakMmioRegisters(PMOS_COMMAND_BUFFER cmdBuf, bool firstTile);
 
-    MOS_STATUS ReadPakMmioRegistersAtomic(PMOS_COMMAND_BUFFER cmdBuf);
-
     MHW_SETPAR_DECL_HDR(VD_PIPELINE_FLUSH);
 
     MHW_SETPAR_DECL_HDR(VDENC_PIPE_MODE_SELECT);
@@ -311,8 +308,6 @@ protected:
     MHW_SETPAR_DECL_HDR(AVP_SURFACE_STATE);
 
     MHW_SETPAR_DECL_HDR(AVP_PIPE_MODE_SELECT);
-
-    MHW_SETPAR_DECL_HDR(AVP_PIPE_BUF_ADDR_STATE);
 
     virtual MOS_STATUS AddAllCmds_AVP_SURFACE_STATE(PMOS_COMMAND_BUFFER cmdBuffer) const;
 

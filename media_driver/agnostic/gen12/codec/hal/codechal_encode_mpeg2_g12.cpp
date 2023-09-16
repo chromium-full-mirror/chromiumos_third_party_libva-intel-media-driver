@@ -32,7 +32,7 @@
 #include "igcodeckrn_g12.h"
 #include "codeckrnheader.h"
 
-struct KernelHeaderMpegG12
+struct KernelHeader
 {
     uint32_t m_kernelCount;
 
@@ -1142,7 +1142,7 @@ MOS_STATUS CodechalEncodeMpeg2G12::GetKernelHeaderAndSize(
     CODECHAL_ENCODE_CHK_NULL_RETURN(krnHeader);
     CODECHAL_ENCODE_CHK_NULL_RETURN(krnSize);
 
-    auto kernelHeaderTable = (KernelHeaderMpegG12 *)binary;
+    auto kernelHeaderTable = (KernelHeader *)binary;
     PCODECHAL_KERNEL_HEADER currKrnHeader;
 
     if (operation == ENC_BRC)

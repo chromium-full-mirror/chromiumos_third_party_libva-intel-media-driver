@@ -111,7 +111,7 @@ MOS_STATUS MediaCopyBaseState::Initialize(PMOS_INTERFACE osInterface)
 //! \return   MOS_STATUS
 //!           Return MOS_STATUS_SUCCESS if support, otherwise return unspoort.
 //!
-MOS_STATUS MediaCopyBaseState::CapabilityCheck(MCPY_STATE_PARAMS &mcpySrc, MCPY_STATE_PARAMS &mcpyDst, MCPY_ENGINE_CAPS &caps, MCPY_METHOD preferMethod)
+MOS_STATUS MediaCopyBaseState::CapabilityCheck(MCPY_STATE_PARAMS& mcpySrc, MCPY_STATE_PARAMS& mcpyDst, MCPY_ENGINE_CAPS& caps)
 {
     // derivate class specific check. include HW engine avaliable check.
     MCPY_CHK_STATUS_RETURN(FeatureSupport(mcpySrc.OsRes, mcpyDst.OsRes, mcpySrc, mcpyDst, caps));
@@ -119,7 +119,7 @@ MOS_STATUS MediaCopyBaseState::CapabilityCheck(MCPY_STATE_PARAMS &mcpySrc, MCPY_
     // common policy check
     // legal check
     // Blt engine does not support protection, allow the copy if dst is staging buffer in system mem
-    if (preferMethod == MCPY_METHOD_POWERSAVING && mcpySrc.CpMode == MCPY_CPMODE_CP && mcpyDst.CpMode == MCPY_CPMODE_CLEAR && !m_allowCPBltCopy)
+    if (mcpySrc.CpMode == MCPY_CPMODE_CP && mcpyDst.CpMode == MCPY_CPMODE_CLEAR && !m_allowCPBltCopy)
     {
         MCPY_ASSERTMESSAGE("illegal usage");
         return MOS_STATUS_INVALID_PARAMETER;
@@ -241,7 +241,6 @@ uint32_t GetMinRequiredSurfaceSizeInBytes(uint32_t pitch, uint32_t height, MOS_F
     case Format_B10G10R10A2:
     case Format_P8:
     case Format_L8:
-    case Format_A8:
         nBytes = pitch * height;
         break;
     default:
@@ -334,7 +333,7 @@ MOS_STATUS MediaCopyBaseState::SurfaceCopy(PMOS_RESOURCE src, PMOS_RESOURCE dst,
 
     MCPY_CHK_STATUS_RETURN(PreCheckCpCopy(mcpySrc, mcpyDst, preferMethod));
 
-    MCPY_CHK_STATUS_RETURN(CapabilityCheck(mcpySrc, mcpyDst, mcpyEngineCaps, preferMethod));
+    MCPY_CHK_STATUS_RETURN(CapabilityCheck(mcpySrc, mcpyDst, mcpyEngineCaps));
 
     CopyEnigneSelect(preferMethod, mcpyEngine, mcpyEngineCaps);
 

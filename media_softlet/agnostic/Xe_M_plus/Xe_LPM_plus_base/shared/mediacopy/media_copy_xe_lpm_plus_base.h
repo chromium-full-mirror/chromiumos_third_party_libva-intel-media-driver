@@ -48,7 +48,6 @@ public:
     //!
     //! \brief    init function.
     virtual MOS_STATUS Initialize(PMOS_INTERFACE osInterface, MhwInterfacesNext *mhwInterfaces);
-    using MediaCopyBaseState::Initialize;
 
     //!
     //! \brief    render format support.

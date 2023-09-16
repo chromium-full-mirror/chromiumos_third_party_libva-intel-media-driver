@@ -80,7 +80,6 @@ VpRenderCmdPacket::VpRenderCmdPacket(MediaTask *task, PVP_MHWINTERFACE hwInterfa
     {
         bool computeContextEnabled = m_hwInterface->m_userFeatureControl->IsComputeContextEnabled();
         m_PacketId = computeContextEnabled ? VP_PIPELINE_PACKET_COMPUTE : VP_PIPELINE_PACKET_RENDER;
-        m_vpUserFeatureControl     = m_hwInterface->m_userFeatureControl;
     }
     else
     {
@@ -730,24 +729,17 @@ MOS_STATUS VpRenderCmdPacket::SetupSurfaceState()
             }
 
             uint32_t index = 0;
-            bool     bWrite = renderSurfaceParams.isOutput;
-            if (renderSurfaceParams.bSurfaceTypeDefined)
-            {
-                bWrite = false;
-            }
 
             if (kernelSurfaceParam->surfaceOverwriteParams.bindedKernel && !kernelSurfaceParam->surfaceOverwriteParams.bufferResource)
             {
-                VP_RENDER_CHK_STATUS_RETURN(SetSurfaceForHwAccess(
+                index = SetSurfaceForHwAccess(
                     &renderHalSurface.OsSurface,
                     &renderHalSurface,
                     &renderSurfaceParams,
                     kernelSurfaceParam->surfaceOverwriteParams.bindIndex,
-                    bWrite,
+                    renderSurfaceParams.isOutput,
                     kernelSurfaceParam->surfaceEntries,
-                    kernelSurfaceParam->sizeOfSurfaceEntries));
-
-                index = kernelSurfaceParam->surfaceOverwriteParams.bindIndex;
+                    kernelSurfaceParam->sizeOfSurfaceEntries);
             }
             else
             {
@@ -760,7 +752,7 @@ MOS_STATUS VpRenderCmdPacket::SetupSurfaceState()
                         &renderHalSurface,
                         &renderSurfaceParams,
                         kernelSurfaceParam->surfaceOverwriteParams.bindIndex,
-                        bWrite);
+                        renderSurfaceParams.isOutput);
                 }
                 else if ((kernelSurfaceParam->surfaceOverwriteParams.updatedSurfaceParams &&
                      kernelSurfaceParam->surfaceOverwriteParams.bufferResource            &&
@@ -773,7 +765,7 @@ MOS_STATUS VpRenderCmdPacket::SetupSurfaceState()
                         &renderHalSurface.OsSurface,
                         &renderHalSurface,
                         &renderSurfaceParams,
-                        bWrite);
+                        renderSurfaceParams.isOutput);
                 }
                 else
                 {
@@ -782,7 +774,7 @@ MOS_STATUS VpRenderCmdPacket::SetupSurfaceState()
                         &renderHalSurface.OsSurface,
                         &renderHalSurface,
                         &renderSurfaceParams,
-                        bWrite);
+                        renderSurfaceParams.isOutput);
                 }
             }
             VP_RENDER_CHK_STATUS_RETURN(m_kernel->UpdateCurbeBindingIndex(type, index));
@@ -995,11 +987,6 @@ void VpRenderCmdPacket::OcaDumpDbgInfo(MOS_COMMAND_BUFFER &cmdBuffer, MOS_CONTEX
     }
     // Add vphal param to log.
     HalOcaInterfaceNext::DumpVphalParam(cmdBuffer, (MOS_CONTEXT_HANDLE)&mosContext, m_renderHal->pVphalOcaDumper);
-
-    if (m_vpUserFeatureControl)
-    {
-        HalOcaInterfaceNext::DumpVpUserFeautreControlInfo(cmdBuffer, &mosContext, m_vpUserFeatureControl->GetOcaFeautreControlInfo());
-    }
 }
 
 MOS_STATUS VpRenderCmdPacket::SetMediaFrameTracking(RENDERHAL_GENERIC_PROLOG_PARAMS &genericPrologParams)

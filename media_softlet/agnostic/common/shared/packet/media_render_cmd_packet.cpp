@@ -467,11 +467,11 @@ uint32_t RenderCmdPacket::SetSurfaceForHwAccess(PMOS_SURFACE surface, PRENDERHAL
     return iBTEntry;
 }
 
-MOS_STATUS RenderCmdPacket::SetSurfaceForHwAccess(
+uint32_t RenderCmdPacket::SetSurfaceForHwAccess(
     PMOS_SURFACE                    surface,
     PRENDERHAL_SURFACE_NEXT         pRenderSurface,
     PRENDERHAL_SURFACE_STATE_PARAMS pSurfaceParams,
-    uint32_t                        &bindingIndex,
+    uint32_t                        bindingIndex,
     bool                            bWrite,
     PRENDERHAL_SURFACE_STATE_ENTRY *surfaceEntries,
     uint32_t *                      numOfSurfaceEntries)
@@ -565,7 +565,7 @@ MOS_STATUS RenderCmdPacket::SetSurfaceForHwAccess(
         *numOfSurfaceEntries = iSurfaceEntries;
     }
 
-    return eStatus;
+    return bindingIndex;
 }
 
 

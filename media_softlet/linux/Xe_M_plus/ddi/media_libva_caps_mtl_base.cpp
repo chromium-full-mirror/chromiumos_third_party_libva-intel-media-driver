@@ -34,7 +34,7 @@
 #include "codec_def_encode_av1.h"
 #include "codec_def_common.h"
 #include "media_ddi_decode_const.h"
-#include "media_ddi_decode_const_xe_m_plus.h"
+#include "media_ddi_decode_const_g12.h"
 #include "media_ddi_encode_const.h"
 #include "drm_fourcc.h"
 
@@ -176,7 +176,8 @@ VAStatus MediaLibvaCapsMtlBase::LoadAv1EncProfileEntrypoints()
         (*attributeList)[VAConfigAttribEncDynamicScaling] = 0;
         (*attributeList)[VAConfigAttribEncTileSupport]    = 1;
         (*attributeList)[VAConfigAttribEncDirtyRect]      = VA_ATTRIB_NOT_SUPPORTED;
-        (*attributeList)[VAConfigAttribEncMaxRefFrames]   = CODEC_AV1_NUM_REFL0P_FRAMES | CODEC_AV1_NUM_REFL1B_FRAMES<<16;
+        (*attributeList)[VAConfigAttribEncMaxRefFrames]   = CODEC_AV1_NUM_REFL0P_FRAMES |
+            CODEC_AV1_NUM_REFL0B_FRAMES<<8 | CODEC_AV1_NUM_REFL1B_FRAMES<<16;
 
         VAConfigAttrib attrib;
         attrib.type = (VAConfigAttribType) VAConfigAttribEncAV1;
@@ -201,9 +202,7 @@ VAStatus MediaLibvaCapsMtlBase::LoadAv1EncProfileEntrypoints()
         VAConfigAttribValEncAV1Ext2 attribValAV1ToolsExt2;
         memset(&attribValAV1ToolsExt2, 0, sizeof(attribValAV1ToolsExt2));
         attribValAV1ToolsExt2.bits.tile_size_bytes_minus1 = 3;
-        attribValAV1ToolsExt2.bits.obu_size_bytes_minus1  = 3;
-        attribValAV1ToolsExt2.bits.max_tile_num_minus1    = 511;
-        attribValAV1ToolsExt2.bits.tx_mode_support        = 4;
+        attribValAV1ToolsExt2.bits.tx_mode_support        = 2;
 
         attrib.value = attribValAV1ToolsExt2.value;
         (*attributeList)[attrib.type] = attrib.value;
@@ -347,7 +346,7 @@ std::string MediaLibvaCapsMtlBase::GetDecodeCodecKey(VAProfile profile)
         case VAProfileHEVCSccMain10:
         case VAProfileHEVCSccMain444:
         case VAProfileHEVCSccMain444_10:
-            return DECODE_ID_HEVC_REXT;
+            return DECODE_ID_HEVC_G12;
         case VAProfileAV1Profile0:
         case VAProfileAV1Profile1:
             return DECODE_ID_AV1;
@@ -2396,10 +2395,6 @@ VAStatus MediaLibvaCapsMtlBase::CreateEncAttributes(
     if (entrypoint == VAEntrypointEncSliceLP)
     {
         attrib.value = DDI_CODEC_VDENC_MAX_L0_REF_FRAMES | (DDI_CODEC_VDENC_MAX_L1_REF_FRAMES << DDI_CODEC_LEFT_SHIFT_FOR_REFLIST1);
-        if (IsAvcProfile(profile))
-        {
-            attrib.value = DDI_CODEC_VDENC_MAX_L0_REF_FRAMES | (DDI_CODEC_VDENC_MAX_L1_REF_FRAMES_RAB_AVC << DDI_CODEC_LEFT_SHIFT_FOR_REFLIST1);
-        }
         if (IsHevcProfile(profile))
         {
             attrib.value = DDI_CODEC_VDENC_MAX_L0_REF_FRAMES_LDB | (DDI_CODEC_VDENC_MAX_L1_REF_FRAMES_LDB << DDI_CODEC_LEFT_SHIFT_FOR_REFLIST1);
@@ -2696,16 +2691,16 @@ VAStatus MediaLibvaCapsMtlBase::SetExternalSurfaceTileFormat(DDI_MEDIA_SURFACE* 
     switch (mediaSurface->pSurfDesc->modifier)
     {
         case I915_FORMAT_MOD_4_TILED:
-            tileformat = TILING_Y;
+            tileformat = I915_TILING_Y;
             bMemCompEnable = false;
             break;
         case I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC:
-            tileformat = TILING_Y;
+            tileformat = I915_TILING_Y;
             bMemCompEnable = true;
             bMemCompRC = true;
             break;
         case I915_FORMAT_MOD_4_TILED_MTL_MC_CCS:
-            tileformat = TILING_Y;
+            tileformat = I915_TILING_Y;
             bMemCompEnable = true;
             bMemCompRC = false;
             break;

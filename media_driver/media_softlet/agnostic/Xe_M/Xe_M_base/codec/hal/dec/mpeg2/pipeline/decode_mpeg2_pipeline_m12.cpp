@@ -114,6 +114,7 @@ MOS_STATUS Mpeg2PipelineM12::Initialize(void *settings)
     DECODE_CHK_STATUS(MediaPipeline::InitPlatform());
     DECODE_CHK_STATUS(MediaPipeline::CreateMediaCopyWrapper());
     DECODE_CHK_NULL(m_mediaCopyWrapper);
+    m_mediaCopyWrapper->CreateMediaCopyState();
 
     DECODE_CHK_NULL(m_waTable);
 
@@ -130,7 +131,7 @@ MOS_STATUS Mpeg2PipelineM12::Initialize(void *settings)
         m_debugInterface = MOS_New(CodechalDebugInterface);
         DECODE_CHK_NULL(m_debugInterface);
         DECODE_CHK_STATUS(
-            m_debugInterface->Initialize(m_hwInterface, codecSettings->codecFunction, m_mediaCopyWrapper)););
+            m_debugInterface->Initialize(m_hwInterface, codecSettings->codecFunction, m_mediaCopyWrapper->GetMediaCopyState())););
 
     if (m_hwInterface->m_hwInterfaceNext)
     {
@@ -250,8 +251,6 @@ MOS_STATUS Mpeg2PipelineM12::InitContext()
     scalPars.numVdbox = m_numVdbox;
     m_mediaContext->SwitchContext(VdboxDecodeFunc, &scalPars, &m_scalability);
     DECODE_CHK_NULL(m_scalability);
-    if (scalPars.disableScalability)
-        m_osInterface->pfnSetMultiEngineEnabled(m_osInterface, COMPONENT_Decode, false);
 
     return MOS_STATUS_SUCCESS;
 }
@@ -307,11 +306,7 @@ MOS_STATUS Mpeg2PipelineM12::Execute()
             DECODE_CHK_STATUS(CopyDummyBitstream());
             DECODE_CHK_STATUS(ActivateDecodePackets());
             DECODE_CHK_STATUS(ExecuteActivePackets());
-            
-#if (_DEBUG || _RELEASE_INTERNAL)
-            DECODE_CHK_STATUS(StatusCheck());
-#endif
-
+ 
             // Only update user features for the first frame.
             if (m_basicFeature->m_frameNum == 0)
             {
@@ -320,8 +315,7 @@ MOS_STATUS Mpeg2PipelineM12::Execute()
 
             if (m_basicFeature->m_secondField || CodecHal_PictureIsFrame(m_basicFeature->m_curRenderPic))
             {
-                DecodeFrameIndex++;
-                m_basicFeature->m_frameNum = DecodeFrameIndex;
+                m_basicFeature->m_frameNum++;
             }
 
             DECODE_CHK_STATUS(m_statusReport->Reset());
@@ -350,8 +344,7 @@ MOS_STATUS Mpeg2PipelineM12::Execute()
 
             if (m_basicFeature->m_secondField || CodecHal_PictureIsFrame(m_basicFeature->m_curRenderPic))
             {
-                DecodeFrameIndex++;
-                m_basicFeature->m_frameNum = DecodeFrameIndex;
+                m_basicFeature->m_frameNum++;
             }
 
             DECODE_CHK_STATUS(m_statusReport->Reset());
@@ -414,10 +407,21 @@ MOS_STATUS Mpeg2PipelineM12::DumpParams(Mpeg2BasicFeature &basicFeature)
     m_debugInterface->m_bufferDumpFrameNum = basicFeature.m_frameNum;
 
     DECODE_CHK_STATUS(DumpPicParams(basicFeature.m_mpeg2PicParams));
-    DECODE_CHK_STATUS(DumpSliceParams(basicFeature.m_mpeg2SliceParams, basicFeature.m_numSlices));
-    DECODE_CHK_STATUS(DumpMbParams(basicFeature.m_mpeg2MbParams, basicFeature.m_numMacroblocks));
-    DECODE_CHK_STATUS(DumpIQParams(basicFeature.m_mpeg2IqMatrixBuffer));
-    DECODE_CHK_STATUS(DumpBitstream(&basicFeature.m_resDataBuffer.OsResource, basicFeature.m_dataSize, 0));
+
+    if (basicFeature.m_mpeg2IqMatrixParams)
+    {
+        DECODE_CHK_STATUS(DumpIQParams(basicFeature.m_mpeg2IqMatrixParams));
+    }
+
+    if (basicFeature.m_mpeg2SliceParams)
+    {
+        DECODE_CHK_STATUS(DumpSliceParams(basicFeature.m_mpeg2SliceParams, basicFeature.m_numSlices));
+    }
+
+    if (basicFeature.m_mpeg2MbParams)
+    {
+        DECODE_CHK_STATUS(DumpMbParams(basicFeature.m_mpeg2MbParams));
+    }
 
     return MOS_STATUS_SUCCESS;
 }

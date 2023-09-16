@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2021-2023, Intel Corporation
+* Copyright (c) 2021-2022, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -123,7 +123,21 @@ namespace decode{
     {
         DECODE_FUNC_CALL();
 
-        DECODE_CHK_STATUS(GetChromaFormat());
+        m_av1PicParams      = m_av1BasicFeature->m_av1PicParams;
+
+        if (m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingX == 1 && m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingY == 1)
+        {
+            chromaSamplingFormat = HCP_CHROMA_FORMAT_YUV420;
+        }
+        else if (m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingX == 0 && m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingY == 0)
+        {
+            chromaSamplingFormat = HCP_CHROMA_FORMAT_YUV444;
+        }
+        else
+        {
+            DECODE_ASSERTMESSAGE("Invalid Chroma sampling format!");
+            return MOS_STATUS_INVALID_PARAMETER;
+        }
 
 #ifdef _MMC_SUPPORTED
         m_mmcState = m_av1Pipeline->GetMmcState();
@@ -133,25 +147,6 @@ namespace decode{
         DECODE_CHK_STATUS(SetRowstoreCachingOffsets());
 
         DECODE_CHK_STATUS(AllocateVariableResources());
-
-        return MOS_STATUS_SUCCESS;
-    }
-
-    MOS_STATUS Av1DecodePicPkt::GetChromaFormat()
-    {
-        DECODE_FUNC_CALL();
-
-        m_av1PicParams = m_av1BasicFeature->m_av1PicParams;
-
-        if (m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingX == 1 && m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingY == 1)
-        {
-            chromaSamplingFormat = av1ChromaFormatYuv420;
-        }
-        else
-        {
-            DECODE_ASSERTMESSAGE("Invalid Chroma sampling format!");
-            return MOS_STATUS_INVALID_PARAMETER;
-        }
 
         return MOS_STATUS_SUCCESS;
     }
@@ -167,7 +162,7 @@ namespace decode{
             rowstoreParams.bMbaff           = false;
             rowstoreParams.Mode             = CODECHAL_DECODE_MODE_AV1VLD;
             rowstoreParams.ucBitDepthMinus8 = m_av1PicParams->m_bitDepthIdx << 1;
-            rowstoreParams.ucChromaFormat   = static_cast<uint8_t>(chromaSamplingFormat);
+            rowstoreParams.ucChromaFormat   = m_av1BasicFeature->m_chromaFormat;
             DECODE_CHK_STATUS(m_hwInterface->SetRowstoreCachingOffsets(&rowstoreParams));
         }
 
@@ -197,7 +192,6 @@ namespace decode{
         avpBufSizeParam.isSb128x128     = m_av1PicParams->m_seqInfoFlags.m_fields.m_use128x128Superblock ? true : false;
         avpBufSizeParam.curFrameTileNum = m_av1PicParams->m_tileCols * m_av1PicParams->m_tileRows;
         avpBufSizeParam.numTileCol      = m_av1PicParams->m_tileCols;
-        avpBufSizeParam.chromaFormat    = chromaSamplingFormat;
 
         // Lamda expression
         auto AllocateBuffer = [&] (PMOS_BUFFER &buffer, AvpBufferType bufferType, const char *bufferName)
@@ -538,15 +532,15 @@ namespace decode{
 
         if (m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingX == 1 && m_av1PicParams->m_seqInfoFlags.m_fields.m_subsamplingY == 1)
         {
-            if (!m_av1PicParams->m_seqInfoFlags.m_fields.m_monoChrome &&
-                (m_av1PicParams->m_bitDepthIdx == 0 || m_av1PicParams->m_bitDepthIdx == 1))
+            if (m_av1PicParams->m_seqInfoFlags.m_fields.m_monoChrome)
             {
-                //4:2:0
-                params.chromaFormat = av1ChromaFormatYuv420;
+                //4:0:0
+                params.chromaFormat = 0;
             }
             else
             {
-                return MOS_STATUS_PLATFORM_NOT_SUPPORTED;
+                //4:2:0
+                params.chromaFormat = 1;
             }
         }
 
@@ -671,12 +665,18 @@ namespace decode{
         return MOS_STATUS_SUCCESS;
     }
 
+    static bool MmcEnabled(MOS_MEMCOMP_STATE state)
+    {
+        return state == MOS_MEMCOMP_RC || state == MOS_MEMCOMP_MC;
+    }
+
     MOS_STATUS Av1DecodePicPkt::AddAllCmds_AVP_SURFACE_STATE(MOS_COMMAND_BUFFER& cmdBuffer)
     {
         DECODE_FUNC_CALL();
 
         m_curAvpSurfStateId = reconPic;
         SETPAR_AND_ADDCMD(AVP_SURFACE_STATE, m_avpItf, &cmdBuffer);
+        uint32_t compressionFormat = 0;
         if (!AV1_KEY_OR_INRA_FRAME(m_av1PicParams->m_picInfoFlags.m_fields.m_frameType))
         {
             for (uint8_t i = 0; i < av1TotalRefsPerFrame; i++)
@@ -685,7 +685,9 @@ namespace decode{
 
                 //set for intra frame
                 m_refSurface[0] = m_av1BasicFeature->m_destSurface;
-                GetSurfaceMmcInfo(const_cast<PMOS_SURFACE>(&m_refSurface[0]), m_refMmcState[0], m_refCompressionFormat);
+                GetSurfaceMmcInfo(const_cast<PMOS_SURFACE>(&m_refSurface[0]), m_refMmcState[0], compressionFormat);
+                m_refCompressionFormat = MmcEnabled(m_refMmcState[0])? compressionFormat : m_refCompressionFormat;
+
                 Av1ReferenceFrames &refFrames = m_av1BasicFeature->m_refFrames;
                 const std::vector<uint8_t> &activeRefList = refFrames.GetActiveReferenceList(*m_av1PicParams,
                     m_av1BasicFeature->m_av1TileParams[m_av1BasicFeature->m_tileCoding.m_curTile]);
@@ -698,7 +700,8 @@ namespace decode{
                     if (refSuf != nullptr)
                     {
                         m_refSurface[i + 1].OsResource = *refSuf;
-                        GetSurfaceMmcInfo(const_cast<PMOS_SURFACE>(&m_refSurface[i + 1]), m_refMmcState[i + 1], m_refCompressionFormat);
+                        GetSurfaceMmcInfo(const_cast<PMOS_SURFACE>(&m_refSurface[i + 1]), m_refMmcState[i + 1], compressionFormat);
+                        m_refCompressionFormat = MmcEnabled(m_refMmcState[0])? compressionFormat : m_refCompressionFormat;
                     }
                 }
 
@@ -840,12 +843,10 @@ namespace decode{
         Av1ReferenceFrames &refFrames = m_av1BasicFeature->m_refFrames;
         uint8_t prevFrameIdx = refFrames.GetPrimaryRefIdx();
 
-        uint32_t refSize = 0;
         if (m_av1PicParams->m_picInfoFlags.m_fields.m_frameType != keyFrame)
         {
             const std::vector<uint8_t> &activeRefList = refFrames.GetActiveReferenceList(
                 *m_av1PicParams, m_av1BasicFeature->m_av1TileParams[m_av1BasicFeature->m_tileCoding.m_curTile]);
-            refSize = activeRefList.size();
 
             //set for INTRA_FRAME
             params.refs[0] = &m_av1BasicFeature->m_destSurface.OsResource;
@@ -902,7 +903,7 @@ namespace decode{
 #endif
 
 #if USE_CODECHAL_DEBUG_TOOL
-        DECODE_CHK_STATUS(DumpResources(refSize));
+        DECODE_CHK_STATUS(DumpResources());
 #endif
 
         return MOS_STATUS_SUCCESS;
@@ -1047,7 +1048,7 @@ namespace decode{
 
         par.refFrameRes[intraFrame]    = CAT2SHORTS(m_av1PicParams->m_frameWidthMinus1, m_av1PicParams->m_frameHeightMinus1);
         par.refScaleFactor[intraFrame] = CAT2SHORTS(m_av1ScalingFactor, m_av1ScalingFactor);
-        par.refOrderHints[intraFrame]  = m_av1PicParams->m_seqInfoFlags.m_fields.m_enableOrderHint ? curRefList->m_orderHint : 0;
+        par.refOrderHints[intraFrame]  = curRefList->m_orderHint;
         par.refFrameIdx[0]             = intraFrame;
         par.refFrameSide               = 0;
         uint32_t horizontalScaleFactor, verticalScaleFactor;
@@ -1070,7 +1071,7 @@ namespace decode{
 
                 par.refFrameRes[i + lastFrame]    = CAT2SHORTS(m_refList[refPicIndex]->m_frameWidth - 1, m_refList[refPicIndex]->m_frameHeight - 1);
                 par.refScaleFactor[i + lastFrame] = CAT2SHORTS(verticalScaleFactor, horizontalScaleFactor);
-                par.refOrderHints[i + lastFrame]  = m_av1PicParams->m_seqInfoFlags.m_fields.m_enableOrderHint ? curRefList->m_refOrderHint[i] : 0;
+                par.refOrderHints[i + lastFrame]  = curRefList->m_refOrderHint[i];
             }
             else
             {
@@ -1120,7 +1121,7 @@ namespace decode{
     }
 
 #if USE_CODECHAL_DEBUG_TOOL
-    MOS_STATUS Av1DecodePicPkt::DumpResources(uint32_t refSize) const
+    MOS_STATUS Av1DecodePicPkt::DumpResources() const
     {
         DECODE_FUNC_CALL();
 
@@ -1132,25 +1133,16 @@ namespace decode{
 
         auto &par = m_avpItf->MHW_GETPAR_F(AVP_PIPE_BUF_ADDR_STATE)();
 
-        if (m_av1PicParams->m_picInfoFlags.m_fields.m_frameType != keyFrame)
-        {
-            for (uint32_t n = 0; n < refSize; n++)
-            {
-                MOS_SURFACE refSurface;
-                MOS_ZeroMemory(&refSurface, sizeof(MOS_SURFACE));
-                refSurface.OsResource = *(par.refs[n + lastFrame]);
-                DECODE_CHK_STATUS(m_allocator->GetSurfaceInfo(&refSurface));
-                std::string refSurfName = "RefSurf[" + std::to_string(static_cast<uint32_t>(n + lastFrame)) + "]";
-                DECODE_CHK_STATUS(debugInterface->DumpYUVSurface(
-                    &refSurface,
-                    CodechalDbgAttr::attrDecodeReferenceSurfaces,
-                    refSurfName.c_str()));
-            }
-        }
-
         //For multi-tiles per frame case, only need dump these resources once.
         if (m_av1BasicFeature->m_tileCoding.m_curTile == 0)
         {
+            DECODE_CHK_STATUS(debugInterface->DumpBuffer(
+                par.cdfTableInitBuffer,
+                CodechalDbgAttr::attrCoefProb,
+                "CdfTableInitialization",
+                m_av1BasicFeature->m_cdfMaxNumBytes,
+                CODECHAL_NUM_MEDIA_STATES));
+
             if (par.segmentIdReadBuffer != nullptr &&
                 !m_allocator->ResourceIsNull(par.segmentIdReadBuffer))
             {
@@ -1160,15 +1152,32 @@ namespace decode{
                     "SegIdReadBuffer",
                     (m_widthInSb * m_heightInSb * CODECHAL_CACHELINE_SIZE),
                     CODECHAL_NUM_MEDIA_STATES));
-            } 
+            }
 
-            DECODE_CHK_STATUS(debugInterface->DumpBuffer(
-                par.cdfTableInitBuffer,
-                CodechalDbgAttr::attrCoefProb,
-                "CdfTableInitialization",
-                m_av1BasicFeature->m_cdfMaxNumBytes,
-                CODECHAL_NUM_MEDIA_STATES));
+            if (m_av1PicParams->m_picInfoFlags.m_fields.m_frameType != keyFrame)
+            {
+                for (auto n = 1; n < av1TotalRefsPerFrame; n++)
+                {
+                    MOS_SURFACE destSurface;
+                    MOS_ZeroMemory(&destSurface, sizeof(MOS_SURFACE));
+                    destSurface.OsResource = *(par.refs[n]);
+                    DECODE_CHK_STATUS(m_allocator->GetSurfaceInfo(&destSurface));
+                    std::string refSurfName = "RefSurf[" + std::to_string(static_cast<uint32_t>(n)) + "]";
+                    DECODE_CHK_STATUS(debugInterface->DumpYUVSurface(
+                        &destSurface,
+                        CodechalDbgAttr::attrDecodeReferenceSurfaces,
+                        refSurfName.c_str()));
+                }
+            }
         }
+
+        DECODE_CHK_STATUS(debugInterface->DumpBuffer(
+            &m_av1BasicFeature->m_resDataBuffer.OsResource,
+            CodechalDbgAttr::attrDecodeBitstream,
+            "DEC",
+            m_av1BasicFeature->m_dataSize,
+            m_av1BasicFeature->m_dataOffset,
+            CODECHAL_NUM_MEDIA_STATES));
 
         return MOS_STATUS_SUCCESS;
     }

@@ -631,7 +631,8 @@ MHW_SETPAR_DECL_SRC(HCP_PIPE_BUF_ADDR_STATE, Vp9DecodePicPkt)
 
     DECODE_CHK_STATUS(FixHcpPipeBufAddrParams());
 
-    CODECHAL_DEBUG_TOOL(DumpResources(params, activeRefList.size(), m_vp9BasicFeature->m_resVp9MvTemporalBuffer[0]->size));
+    // Dump reference surface
+    CODECHAL_DEBUG_TOOL(DumpRefResources(params, m_vp9BasicFeature->m_resVp9MvTemporalBuffer[0]->size));
 
     return MOS_STATUS_SUCCESS;
 }
@@ -846,28 +847,29 @@ MOS_STATUS Vp9DecodePicPkt::CalculateCommandSize(uint32_t &commandBufferSize, ui
     return MOS_STATUS_SUCCESS;
 }
 
+// dump reference 
 #if USE_CODECHAL_DEBUG_TOOL
-MOS_STATUS Vp9DecodePicPkt::DumpResources(HCP_PIPE_BUF_ADDR_STATE_PAR &params, uint32_t refSize, uint32_t mvSize) const
+MOS_STATUS Vp9DecodePicPkt::DumpRefResources(HCP_PIPE_BUF_ADDR_STATE_PAR &params, uint32_t size) const
 {
     DECODE_FUNC_CALL();
 
     CodechalDebugInterface *debugInterface = m_pipeline->GetDebugInterface();
     DECODE_CHK_NULL(debugInterface);
-    for (uint16_t n = 0; n < refSize; n++)
+    for (uint16_t n = 0; n < CODECHAL_DECODE_VP9_MAX_NUM_REF_FRAME; n++)
     {
         if (params.presReferences[n])
         {
-            MOS_SURFACE refSurface;
-            MOS_ZeroMemory(&refSurface, sizeof(MOS_SURFACE));
-            refSurface.OsResource = *(params.presReferences[n]);
+            MOS_SURFACE dstSurface;
+            MOS_ZeroMemory(&dstSurface, sizeof(MOS_SURFACE));
+            dstSurface.OsResource = *(params.presReferences[n]);
             DECODE_CHK_STATUS(CodecUtilities::CodecHalGetResourceInfo(
                 m_osInterface,
-                &refSurface));
+                &dstSurface));
 
             debugInterface->m_refIndex = n;
             std::string refSurfName    = "RefSurf[" + std::to_string(static_cast<uint32_t>(debugInterface->m_refIndex)) + "]";
             DECODE_CHK_STATUS(debugInterface->DumpYUVSurface(
-                &refSurface,
+                &dstSurface,
                 CodechalDbgAttr::attrDecodeReferenceSurfaces,
                 refSurfName.c_str()));
         }
@@ -880,7 +882,7 @@ MOS_STATUS Vp9DecodePicPkt::DumpResources(HCP_PIPE_BUF_ADDR_STATE_PAR &params, u
             params.presColMvTempBuffer[0],
             CodechalDbgAttr::attrMvData,
             "DEC_Col_MV_",
-            mvSize));
+            size));
     };
 
     if (params.presCurMvTempBuffer)
@@ -890,7 +892,7 @@ MOS_STATUS Vp9DecodePicPkt::DumpResources(HCP_PIPE_BUF_ADDR_STATE_PAR &params, u
             params.presCurMvTempBuffer,
             CodechalDbgAttr::attrMvData,
             "DEC_Cur_MV_",
-            mvSize));
+            size));
     };
 
    return MOS_STATUS_SUCCESS;

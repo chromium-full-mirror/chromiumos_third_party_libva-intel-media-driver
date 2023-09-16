@@ -522,28 +522,12 @@ static bool InitAdlsMediaSku(struct GfxDeviceInfo *devInfo,
 
     MEDIA_WR_SKU(skuTable, FtrAV1VLDLSTDecoding, 1);
 
-    MEDIA_WR_SKU(skuTable, FtrHeight8AlignVE3DLUTDualPipe, 1);
-
     //Disable VP8 for ADLS
     MEDIA_WR_SKU(skuTable, FtrIntelVP8VLDDecoding, 0);
 
     // Disable HEVC 422 Virtual Tile Scalability
     MEDIA_WR_SKU(skuTable, FtrDecodeHEVC422VTScalaDisable, 1);
     MEDIA_WR_SKU(skuTable, FtrE2ECompression, 1);
-
-
-    //RPL-S
-    if (drvInfo->devId == 0xA780 || 
-        drvInfo->devId == 0xA781 || 
-        drvInfo->devId == 0xA782 || 
-        drvInfo->devId == 0xA783 || 
-        drvInfo->devId == 0xA788 || 
-        drvInfo->devId == 0xA789 || 
-        drvInfo->devId == 0xA78A || 
-        drvInfo->devId == 0xA78B)
-    {
-        MEDIA_WR_SKU(skuTable, FtrGucSubmission, 1);
-    }
 
     return true;
 }
@@ -645,8 +629,7 @@ static bool InitAdlnMediaSku(struct GfxDeviceInfo *devInfo,
     {
         MEDIA_WR_SKU(skuTable, FtrGT0_5, 1);
     }
-    
-    MEDIA_WR_SKU(skuTable, FtrHeight8AlignVE3DLUTDualPipe, 1);
+
     MEDIA_WR_SKU(skuTable, FtrAV1VLDLSTDecoding, 1);
     MEDIA_WR_SKU(skuTable, FtrGucSubmission, 1);
     MEDIA_WR_SKU(skuTable, FtrDecodeHEVC422VTScalaDisable, 1);

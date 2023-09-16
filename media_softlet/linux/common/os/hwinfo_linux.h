@@ -27,7 +27,7 @@
 #define __HWINFO_LINUX_H__
 
 #include "mos_defs.h"
-#include "mos_bufmgr_api.h"
+#include "mos_bufmgr.h"
 #include "linux_shadow_skuwa.h"
 #include "igfxfmid.h"
 //------------------------------------------------------------------------------
@@ -55,6 +55,9 @@ extern MOS_STATUS HWInfo_GetGfxInfo(int32_t    fd,
                           MEDIA_WA_TABLE       *waTable,
                           MEDIA_SYSTEM_INFO    *gtSystemInfo,
                           MediaUserSettingSharedPtr userSettingPtr);
+
+struct LinuxDriverInfo;
+extern MOS_STATUS HWInfoGetLinuxDrvInfo(int  fd, struct LinuxDriverInfo *drvInfo);
 
 extern MOS_STATUS HWInfo_GetGmmInfo(int               fd,
                           SHADOW_MEDIA_FEATURE_TABLE  *shadowSkuTable,

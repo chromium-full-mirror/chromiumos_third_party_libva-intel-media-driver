@@ -84,11 +84,6 @@ public:
         return true;
     }
 
-    virtual bool IsDecompForInterlacedSurfWaEnabled()
-    {
-        return true;
-    }
-
 protected:
     bool m_disableSfcDithering = false;
 

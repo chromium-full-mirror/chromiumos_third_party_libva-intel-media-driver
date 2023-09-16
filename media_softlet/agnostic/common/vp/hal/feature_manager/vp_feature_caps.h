@@ -204,7 +204,6 @@ struct VP_POLICY_RULES
     } sfcMultiPassSupport;
 
     bool isAvsSamplerSupported;
-    bool isHDR3DLutKernelEnabled;
 };
 
 struct VP_HW_CAPS

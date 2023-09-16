@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2020-2023, Intel Corporation
+* Copyright (c) 2020-2021, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -69,9 +69,6 @@ MOS_STATUS AvcBasicFeature::Init(void *setting)
     m_adaptiveRoundingInterEnable = (outValue.Get<int32_t>()) ? true : false;
 
     m_targetUsageOverride = (uint8_t)0;
-
-    m_brcAdaptiveRegionBoostSupported = true;
-
 #if (_DEBUG || _RELEASE_INTERNAL)
 
     outValue = 0;
@@ -94,16 +91,13 @@ MOS_STATUS AvcBasicFeature::Init(void *setting)
 
     m_perMBStreamOutEnable = (outValue.Get<int32_t>()) ? true : false;
 
-    outValue = 0;
-
     ReadUserSettingForDebug(
         m_userSettingPtr,
         outValue,
         "AVC VDEnc TCBRC ARB Disable",
         MediaUserSetting::Group::Sequence);
 
-    m_brcAdaptiveRegionBoostSupported = (outValue.Get<int32_t>()) ? false : m_brcAdaptiveRegionBoostSupported;
-
+    m_brcAdaptiveRegionBoostSupported = (outValue.Get<int32_t>()) ? false : true;
 #endif  // _DEBUG || _RELEASE_INTERNAL
 
     return MOS_STATUS_SUCCESS;
@@ -204,13 +198,6 @@ MOS_STATUS AvcBasicFeature::Update(void *params)
     ENCODE_CHK_STATUS_RETURN(GetTrackedBuffers());
 
     m_brcAdaptiveRegionBoostEnabled = m_brcAdaptiveRegionBoostSupported && (m_picParam->TargetFrameSize != 0) && m_lookaheadDepth == 0;
-
-    // HW limitation, skip block count for B frame must be acquired in GetAvcVdencMBLevelStatusExt
-    if (m_picParam->StatusReportEnable.fields.BlockStats ||
-        (m_picParam->StatusReportEnable.fields.FrameStats && m_picParam->CodingType == B_TYPE))
-    {
-        m_perMBStreamOutEnable = true;
-    }
 
     return MOS_STATUS_SUCCESS;
 }
@@ -523,6 +510,12 @@ MOS_STATUS AvcBasicFeature::SetSliceStructs()
         }
         else  // SLICE_STRUCT_ARBITRARYMBSLICE
         {
+            uint8_t ppsIdx          = m_sliceParams->pic_parameter_set_id;
+            uint8_t refPicListIdx   = m_sliceParams[ppsIdx].RefPicList[0][0].FrameIdx;
+            uint8_t refFrameListIdx = m_picParam[ppsIdx].RefFrameList[refPicListIdx].FrameIdx;
+
+            bool dirtyRoiEnabled = (m_pictureCodingType == P_TYPE && m_picParams[ppsIdx]->NumDirtyROI > 0 && m_prevReconFrameIdx == refFrameListIdx);
+
             if ((slcParams->NumMbsForSlice % m_picWidthInMb) ||                                          // If slice is partial MB row,
                 ((sliceCount < m_numSlices - 1) && (numMbsInPrevSlice != slcParams->NumMbsForSlice)) ||  // OR not the last slice and num mbs is not same as prev slice
                 ((sliceCount == m_numSlices - 1) && ((numMbsInPrevSlice < slcParams->NumMbsForSlice))))  // OR it is the last slice and num mbs is not less than prev slice
@@ -547,7 +540,9 @@ MOS_STATUS AvcBasicFeature::SetSliceStructs()
         slcParams->redundant_pic_cnt                  = 0;
         slcParams->sp_for_switch_flag                 = 0;
         slcParams->slice_qs_delta                     = 0;
+        slcParams->ref_pic_list_reordering_flag_l0    = 0;
         slcParams->ref_pic_list_reordering_flag_l1    = 0;
+        slcParams->adaptive_ref_pic_marking_mode_flag = 0;
         slcParams->no_output_of_prior_pics_flag       = 0;
         slcParams->redundant_pic_cnt                  = 0;
 
@@ -1005,7 +1000,6 @@ MHW_SETPAR_DECL_SRC(VDENC_PIPE_MODE_SELECT, AvcBasicFeature)
     params.dynamicSlice   = m_seqParam->EnableSliceLevelRateCtrl;
     params.chromaType     = m_seqParam->chroma_format_idc;
     params.randomAccess   = (m_picParam->CodingType == B_TYPE);
-    params.frameStatisticsStreamOut = m_picParam->StatusReportEnable.fields.FrameStats;
 
     // override perf settings for AVC codec on B-stepping
     static const uint8_t par1table[] = { 0, 0, 1, 1, 1, 1, 1 };
@@ -1283,7 +1277,6 @@ MHW_SETPAR_DECL_SRC(MFX_PIPE_MODE_SELECT, AvcBasicFeature)
     params.deblockerStreamOutEnable = 0;
     params.vdencMode = 1;
     params.decoderShortFormatMode = 1;
-    params.sliceSizeStreamout32bit = true;
 
     return MOS_STATUS_SUCCESS;
 }

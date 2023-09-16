@@ -66,8 +66,7 @@ using PCVP_PIPELINE_PARAMS = const VPHAL_RENDER_PARAMS*;
     uint32_t isHVSTableNeeded : 1;
 
 #define RESOURCE_ASSIGNMENT_HINT_BITS_STD_ALONE \
-    uint32_t isSkinScoreDumpNeededForSTDonly : 1; \
-    uint32_t isSkinScoreOutputNeededForSTDOnly : 1;
+    uint32_t isSkinScoreDumpNeededForSTDonly : 1;
 
 #define RESOURCE_ASSIGNMENT_HINT_BITS           \
         RESOURCE_ASSIGNMENT_HINT_BITS_DI        \
@@ -240,7 +239,7 @@ typedef struct _VP_EngineEntry
             uint32_t isOutputPipeNeeded : 1;    // true if the feature is used for parameter calculation.
             uint32_t sfcOnlyFeatureExists : 1;  // The feature exists, which only support sfc.
             uint32_t bTemperalInputInuse : 1;   // true if replace input
-            uint32_t outputWithLumaKey : 1;
+            uint32_t veboxRGBOutputWithoutLumaKey : 1;
         };
         uint32_t value;
     };

@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2019-2023, Intel Corporation
+* Copyright (c) 2019-2021, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -66,6 +66,8 @@ public:
     //!          MOS_STATUS_SUCCESS if success, else fail reason
     //!
     MOS_STATUS Update();
+
+    MOS_STATUS UpdateEncRefBufType(BufferType ref, BufferType ref4x, BufferType ref8x);
 
     MOS_STATUS UpdateRefFrameSize(uint32_t width, uint32_t height);
 
@@ -159,12 +161,6 @@ public:
     //!         A vector contain forward and backward reference surface
     //!
     void GetFwdBwdRefPicList(CODEC_PICTURE (&refsPicList)[2][15]);
-
-    //! \brief  Get  get current frame display order
-    //! \return int32_t
-    //!         frame display order
-    //!
-    int32_t GetFrameDisplayOrder();
 
     //!
     //! \brief  Get  get the Picture Order Count values of reference pictures 
@@ -261,10 +257,6 @@ protected:
     bool                    m_PFrame   = true;                       //!< P frame flag
     bool                    m_enable_order_hint = false;
     uint8_t                 m_orderHintBitsMinus1 = 0;
-    uint8_t                 m_orderHintCount[ENCODE_AV1_ORDER_HINT_SIZE];
-    int32_t                 m_frameOut = 0;                        //!<frame output number
-    int32_t                 m_prevFrameOffset = 0;
-    int32_t                 m_prevFrameDisplayerOrder = 0;
 
     bool       m_encUsePostCdefAsRef = false;
     BufferType m_encRefBufType       = BufferType::postCdefReconSurface;

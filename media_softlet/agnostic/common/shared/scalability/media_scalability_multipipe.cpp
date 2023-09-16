@@ -29,7 +29,7 @@
 
 #include "media_scalability_multipipe.h"
 
-MOS_STATUS MediaScalabilityMultiPipe::UpdateState(void *statePars)
+MOS_STATUS MediaScalabilityMultiPipe::UpdateState()
 {
     return MOS_STATUS_SUCCESS;
 }

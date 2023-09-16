@@ -466,7 +466,7 @@ VAStatus DdiCodec_PutSurfaceLinuxHW(
     Surf.rcSrc                  = srcRect;
     Surf.rcDst                  = dstRect;
 
-    MOS_LINUX_BO* drawable_bo = mos_bo_create_from_name(mediaCtx->pDrmBufMgr, "rendering buffer", buffer->dri2.name);
+    MOS_LINUX_BO* drawable_bo = mos_bo_gem_create_from_name(mediaCtx->pDrmBufMgr, "rendering buffer", buffer->dri2.name);
 
 
     if  (nullptr == drawable_bo)
@@ -478,19 +478,19 @@ VAStatus DdiCodec_PutSurfaceLinuxHW(
     {
         switch (drawable_tiling_mode)
         {
-        case TILING_Y:
+        case I915_TILING_Y:
            tileType = MOS_TILE_Y;
            break;
-        case TILING_X:
+        case I915_TILING_X:
            tileType = MOS_TILE_X;
            gmmParams.Flags.Info.TiledX    = true;
            break;
-        case TILING_NONE:
+        case I915_TILING_NONE:
            tileType = MOS_TILE_LINEAR;
            gmmParams.Flags.Info.Linear    = true;
            break;
         default:
-           drawable_tiling_mode = TILING_NONE;
+           drawable_tiling_mode = I915_TILING_NONE;
            tileType = MOS_TILE_LINEAR;
            gmmParams.Flags.Info.Linear    = true;
            break;
@@ -499,7 +499,7 @@ VAStatus DdiCodec_PutSurfaceLinuxHW(
     }
     else
     {
-        target.OsResource.TileType = (MOS_TILE_TYPE)TILING_NONE;
+        target.OsResource.TileType = (MOS_TILE_TYPE)I915_TILING_NONE;
         tileType = MOS_TILE_LINEAR;
         gmmParams.Flags.Info.Linear    = true;
     }

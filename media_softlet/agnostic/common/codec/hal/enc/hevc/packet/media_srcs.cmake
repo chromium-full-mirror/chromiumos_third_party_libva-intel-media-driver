@@ -27,7 +27,6 @@ set(TMP_SOURCES_
     ${CMAKE_CURRENT_LIST_DIR}/encode_hevc_tile_replay_packet.cpp
     ${CMAKE_CURRENT_LIST_DIR}/encode_huc_la_init_packet.cpp
     ${CMAKE_CURRENT_LIST_DIR}/encode_huc_la_update_packet.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/encode_hevc_vdenc_422_packet.cpp
 )
 
 set(TMP_HEADERS_
@@ -38,7 +37,6 @@ set(TMP_HEADERS_
     ${CMAKE_CURRENT_LIST_DIR}/encode_hevc_tile_replay_packet.h
     ${CMAKE_CURRENT_LIST_DIR}/encode_huc_la_init_packet.h
     ${CMAKE_CURRENT_LIST_DIR}/encode_huc_la_update_packet.h
-    ${CMAKE_CURRENT_LIST_DIR}/encode_hevc_vdenc_422_packet.h
 )
 
 set(SOFTLET_ENCODE_HEVC_HEADERS_

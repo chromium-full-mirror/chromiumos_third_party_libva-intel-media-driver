@@ -83,7 +83,7 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
     }
 
     MOS_STATUS         status          = MOS_STATUS_SUCCESS;
-    uint32_t           tileFormatLinux = TILING_NONE;
+    uint32_t           tileFormatLinux = I915_TILING_NONE;
     uint32_t           alignedHeight   = params.m_height;
     uint32_t           bufHeight       = params.m_height;
     GMM_RESOURCE_TYPE  resourceType    = RESOURCE_2D;
@@ -133,7 +133,7 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
     switch (tileformat)
     {
         case MOS_TILE_Y:
-            tileFormatLinux               = TILING_Y;
+            tileFormatLinux               = I915_TILING_Y;
             if (params.m_isCompressible                                            &&
                 MEDIA_IS_SKU(pOsContextSpecific->GetSkuTable(), FtrE2ECompression) &&
                 MEDIA_IS_SKU(pOsContextSpecific->GetSkuTable(), FtrCompressibleSurfaceDefault))
@@ -153,11 +153,11 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
             break;
         case MOS_TILE_X:
             gmmParams.Flags.Info.TiledX   = true;
-            tileFormatLinux               = TILING_X;
+            tileFormatLinux               = I915_TILING_X;
             break;
         default:
             gmmParams.Flags.Info.Linear   = true;
-            tileFormatLinux               = TILING_NONE;
+            tileFormatLinux               = I915_TILING_NONE;
     }
 
     if (nullptr != params.m_pSystemMemory)
@@ -200,19 +200,19 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
     {
         case GMM_TILED_X:
             tileformat      = MOS_TILE_X;
-            tileFormatLinux = TILING_X;
+            tileFormatLinux = I915_TILING_X;
             break;
         case GMM_TILED_Y:
             tileformat      = MOS_TILE_Y;
-            tileFormatLinux = TILING_Y;
+            tileFormatLinux = I915_TILING_Y;
             break;
         case GMM_NOT_TILED:
             tileformat      = MOS_TILE_LINEAR;
-            tileFormatLinux = TILING_NONE;
+            tileFormatLinux = I915_TILING_NONE;
             break;
         default:
             tileformat      = MOS_TILE_Y;
-            tileFormatLinux = TILING_Y;
+            tileFormatLinux = I915_TILING_Y;
             break;
     }
 
@@ -256,7 +256,7 @@ MOS_STATUS GraphicsResourceSpecific::Allocate(OsContext* osContextPtr, CreatePar
                                       0);
     }
     // Only Linear and Y TILE supported
-    else if (tileFormatLinux == TILING_NONE)
+    else if (tileFormatLinux == I915_TILING_NONE)
     {
         boPtr = mos_bo_alloc(pOsContextSpecific->m_bufmgr, bufName, bufSize, 4096, mem_type);
     }
@@ -477,7 +477,7 @@ void* GraphicsResourceSpecific::Lock(OsContext* osContextPtr, LockParams& params
         {
             if (pOsContextSpecific->IsAtomSoc())
             {
-                mos_bo_map_gtt(boPtr);
+                mos_gem_bo_map_gtt(boPtr);
             }
             else
             {
@@ -505,13 +505,13 @@ void* GraphicsResourceSpecific::Lock(OsContext* osContextPtr, LockParams& params
                     }
                     else
                     {
-                        mos_bo_map_gtt(boPtr);
+                        mos_gem_bo_map_gtt(boPtr);
                         m_mmapOperation = MOS_MMAP_OPERATION_MMAP_GTT;
                     }
                 }
                 else if (params.m_uncached)
                 {
-                    mos_bo_map_wc(boPtr);
+                    mos_gem_bo_map_wc(boPtr);
                     m_mmapOperation = MOS_MMAP_OPERATION_MMAP_WC;
                 }
                 else
@@ -556,7 +556,7 @@ MOS_STATUS GraphicsResourceSpecific::Unlock(OsContext* osContextPtr)
         {
            if (pOsContextSpecific->IsAtomSoc())
            {
-               mos_bo_unmap_gtt(boPtr);
+               mos_gem_bo_unmap_gtt(boPtr);
            }
            else
            {
@@ -574,10 +574,10 @@ MOS_STATUS GraphicsResourceSpecific::Unlock(OsContext* osContextPtr)
                switch(m_mmapOperation)
                {
                    case MOS_MMAP_OPERATION_MMAP_GTT:
-                        mos_bo_unmap_gtt(boPtr);
+                        mos_gem_bo_unmap_gtt(boPtr);
                         break;
                    case MOS_MMAP_OPERATION_MMAP_WC:
-                        mos_bo_unmap_wc(boPtr);
+                        mos_gem_bo_unmap_wc(boPtr);
                         break;
                    case MOS_MMAP_OPERATION_MMAP:
                         mos_bo_unmap(boPtr);

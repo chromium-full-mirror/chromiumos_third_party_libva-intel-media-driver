@@ -160,7 +160,6 @@ MOS_STATUS MhwInterfacesG12Tgllp::Initialize(
         MHW_ASSERTMESSAGE("The OS interface is not valid!");
         return MOS_STATUS_INVALID_PARAMETER;
     }
-    m_osInterface = osInterface;
 
     auto gtSystemInfo = osInterface->pfnGetGtSystemInfo(osInterface);
     if (gtSystemInfo == nullptr)
@@ -177,7 +176,7 @@ MOS_STATUS MhwInterfacesG12Tgllp::Initialize(
 
     // MHW_CP and MHW_MI must always be created
     MOS_STATUS status = MOS_STATUS_SUCCESS;
-    m_cpInterface = osInterface->pfnCreateMhwCpInterface(osInterface);
+    m_cpInterface = Create_MhwCpInterface(osInterface);
     if(m_cpInterface == nullptr)
     {
         MOS_OS_ASSERTMESSAGE("new osInterface failed");

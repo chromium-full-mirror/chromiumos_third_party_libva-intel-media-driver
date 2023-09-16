@@ -26,10 +26,10 @@
 #include "mos_os.h"
 #include "cm_hal.h"
 #include "cm_def_os.h"
+#include "i915_drm.h"
 #include "cm_execution_adv.h"
 #include "mos_graphicsresource.h"
 #include "mos_utilities.h"
-#include "mos_bufmgr_api.h"
 
 #define Y_TILE_WIDTH  128
 #define Y_TILE_HEIGHT 32
@@ -443,7 +443,7 @@ MOS_STATUS HalCm_AllocateBuffer_Linux(
     MOS_LINUX_BO             *bo = nullptr;
 
     size  = param->size;
-    tileformat = TILING_NONE;
+    tileformat = I915_TILING_NONE;
 
     //-----------------------------------------------
     CM_ASSERT(param->size > 0);
@@ -532,13 +532,33 @@ MOS_STATUS HalCm_AllocateBuffer_Linux(
 
             MosUtilities::MosAtomicIncrement(MosUtilities::m_mosMemAllocCounterGfx);
 
-            bo =  mos_bo_alloc_userptr(osInterface->pOsContext->bufmgr,
+#if defined(DRM_IOCTL_I915_GEM_USERPTR)
+           bo =  mos_bo_alloc_userptr(osInterface->pOsContext->bufmgr,
                                  "CM Buffer UP",
                                  (void *)(param->data),
                                  tileformat,
                                  ROUND_UP_TO(size,MOS_PAGE_SIZE),
                                  ROUND_UP_TO(size,MOS_PAGE_SIZE),
-                                 0);
+#if defined(ANDROID)
+                                 I915_USERPTR_UNSYNCHRONIZED
+#else
+                 0
+#endif
+                 );
+#else
+           bo =  mos_bo_alloc_vmap(osInterface->pOsContext->bufmgr,
+                                "CM Buffer UP",
+                                (void *)(param->data),
+                                tileformat,
+                                ROUND_UP_TO(size,MOS_PAGE_SIZE),
+                                ROUND_UP_TO(size,MOS_PAGE_SIZE),
+#if defined(ANDROID)
+                                 I915_USERPTR_UNSYNCHRONIZED
+#else
+                 0
+#endif
+                 );
+#endif
 
             osResource->bMapped = false;
             if (bo)
@@ -1099,11 +1119,19 @@ bool HalCm_IsWaSLMinL3Cache_Linux()
 //| Purpose:    Enable GPU frequency Turbo boost on Linux
 //| Returns:    MOS_STATUS_SUCCESS.
 //*-----------------------------------------------------------------------------
+#define I915_CONTEXT_PRIVATE_PARAM_BOOST 0x80000000
 MOS_STATUS HalCm_EnableTurboBoost_Linux(
     PCM_HAL_STATE             state)
 {
 #ifndef ANDROID
-    mos_enable_turbo_boost(state->osInterface->pOsContext->bufmgr);
+    struct drm_i915_gem_context_param ctxParam;
+    int32_t retVal = 0;
+
+    MOS_ZeroMemory( &ctxParam, sizeof( ctxParam ) );
+    ctxParam.param = I915_CONTEXT_PRIVATE_PARAM_BOOST;
+    ctxParam.value = 1;
+    retVal = drmIoctl( state->osInterface->pOsContext->fd,
+                      DRM_IOCTL_I915_GEM_CONTEXT_SETPARAM, &ctxParam );
 #endif
     //if drmIoctl fail, we will stay in normal mode.
     return MOS_STATUS_SUCCESS;

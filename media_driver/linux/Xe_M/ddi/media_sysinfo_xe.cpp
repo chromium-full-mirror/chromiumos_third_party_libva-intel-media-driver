@@ -432,6 +432,9 @@ static bool dg2Gt4Device5696 = DeviceInfoFactory<GfxDeviceInfo>::
 static bool dg2Gt4Device5697 = DeviceInfoFactory<GfxDeviceInfo>::
     RegisterDevice(0x5697, &dg2Gt4Info);
 
+static bool dg2Gt4Device5698 = DeviceInfoFactory<GfxDeviceInfo>::
+    RegisterDevice(0x5698, &dg2Gt4Info);
+
 static bool dg2Gt4Device56A0 = DeviceInfoFactory<GfxDeviceInfo>::
     RegisterDevice(0x56A0, &dg2Gt4Info);
 
@@ -452,6 +455,15 @@ static bool dg2Gt4Device56A5 = DeviceInfoFactory<GfxDeviceInfo>::
 
 static bool dg2Gt4Device56A6 = DeviceInfoFactory<GfxDeviceInfo>::
     RegisterDevice(0x56A6, &dg2Gt4Info);
+
+static bool dg2Gt4Device56A7 = DeviceInfoFactory<GfxDeviceInfo>::
+    RegisterDevice(0x56A7, &dg2Gt4Info);
+
+static bool dg2Gt4Device56A8 = DeviceInfoFactory<GfxDeviceInfo>::
+    RegisterDevice(0x56A8, &dg2Gt4Info);
+
+static bool dg2Gt4Device56A9 = DeviceInfoFactory<GfxDeviceInfo>::
+    RegisterDevice(0x56A9, &dg2Gt4Info);
 
 static bool dg2Gt4Device56B0 = DeviceInfoFactory<GfxDeviceInfo>::
     RegisterDevice(0x56B0, &dg2Gt4Info);

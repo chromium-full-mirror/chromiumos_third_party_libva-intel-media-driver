@@ -39,15 +39,8 @@ MediaRenderDecompState::~MediaRenderDecompState()
 {
     if (m_cpInterface)
     {
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
-            m_cpInterface = nullptr;
-        }
-        else
-        {
-            RENDERHAL_MEMORY_DECOMP_ASSERTMESSAGE("Failed to destroy cpInterface.");
-        }
+        Delete_MhwCpInterface(m_cpInterface);
+        m_cpInterface = nullptr;
     }
     MOS_Delete(m_mhwMiInterface);
     MOS_Delete(m_renderInterface);

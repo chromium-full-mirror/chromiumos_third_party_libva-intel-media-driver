@@ -34,10 +34,6 @@
 #include "mos_os_virtualengine_next.h"
 #include "mos_interface.h"
 #include "mos_os_cp_interface_specific.h"
-#ifdef ENABLE_NEW_KMD
-// This header file is in close source temporarily. Could not find this header file in open source repo.
-#include "mos_gpucontext_specific_next_xe.h"
-#endif
 
 #define MI_BATCHBUFFER_END 0x05000000
 static pthread_mutex_t command_dump_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -98,35 +94,6 @@ GpuContextSpecificNext::~GpuContextSpecificNext()
     MOS_OS_FUNCTION_ENTER;
 
     Clear();
-}
-
-GpuContextNext *GpuContextSpecificNext::Create(
-    const MOS_GPU_NODE    gpuNode,
-    CmdBufMgrNext         *cmdBufMgr,
-    GpuContextNext        *reusedContext)
-{
-    MOS_OS_FUNCTION_ENTER;
-    if (nullptr == cmdBufMgr)
-    {
-        return nullptr;
-    }
-    OsContextSpecificNext *osDeviceContext = dynamic_cast<OsContextSpecificNext*>(cmdBufMgr->m_osContext);
-    if (nullptr == osDeviceContext)
-    {
-        return nullptr;
-    }
-    int type = osDeviceContext->GetDeviceType();
-    if (DEVICE_TYPE_I915 == type)
-    {
-        return MOS_New(GpuContextSpecificNext, gpuNode, cmdBufMgr, reusedContext);
-    }
-#ifdef ENABLE_NEW_KMD
-    else if (DEVICE_TYPE_XE == type)
-    {
-        return MOS_New(GpuContextSpecificNextXe, gpuNode, cmdBufMgr, reusedContext);
-    }
-#endif
-    return nullptr;
 }
 
 MOS_STATUS GpuContextSpecificNext::RecreateContext(bool bIsProtected, MOS_STREAM_HANDLE streamState)
@@ -219,18 +186,14 @@ MOS_STATUS GpuContextSpecificNext::PatchGPUContextProtection(MOS_STREAM_HANDLE s
 MOS_STATUS GpuContextSpecificNext::Init3DCtx(PMOS_CONTEXT osParameters,
                 PMOS_GPUCTX_CREATOPTIONS createOption,
                 unsigned int *nengine,
-                void *engine_map)
+                struct i915_engine_class_instance *engine_map)
 {
     MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
 
-    m_i915Context[0] = mos_context_create_shared(osParameters->bufmgr,
+    m_i915Context[0] = mos_gem_context_create_shared(osParameters->bufmgr,
                                              osParameters->intel_context,
                                              I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE,
-                                             m_bProtectedContext,
-                                             engine_map,
-                                             1,
-                                             *nengine,
-                                             0);
+                                             m_bProtectedContext);
     if (m_i915Context[0] == nullptr)
     {
         MOS_OS_ASSERTMESSAGE("Failed to create context.\n");
@@ -247,7 +210,7 @@ MOS_STATUS GpuContextSpecificNext::Init3DCtx(PMOS_CONTEXT osParameters,
         return MOS_STATUS_UNKNOWN;
     }
 
-    if (mos_set_context_param_load_balance(m_i915Context[0], (struct i915_engine_class_instance *)engine_map, *nengine))
+    if (mos_set_context_param_load_balance(m_i915Context[0], engine_map, *nengine))
     {
         MOS_OS_ASSERTMESSAGE("Failed to set balancer extension.\n");
         return MOS_STATUS_UNKNOWN;
@@ -266,10 +229,10 @@ MOS_STATUS GpuContextSpecificNext::Init3DCtx(PMOS_CONTEXT osParameters,
             return MOS_STATUS_UNKNOWN;
         }
 
-        if (mos_hweight8(m_i915Context[0], sseu.subslice_mask) > createOption->packed.SubSliceCount)
+        if (mos_hweight8(sseu.subslice_mask) > createOption->packed.SubSliceCount)
         {
-            sseu.subslice_mask = mos_switch_off_n_bits(m_i915Context[0], sseu.subslice_mask,
-                    mos_hweight8(m_i915Context[0], sseu.subslice_mask)-createOption->packed.SubSliceCount);
+            sseu.subslice_mask = mos_switch_off_n_bits(sseu.subslice_mask,
+                    mos_hweight8(sseu.subslice_mask)-createOption->packed.SubSliceCount);
         }
 
         if (mos_set_context_param_sseu(m_i915Context[0], sseu))
@@ -284,20 +247,16 @@ MOS_STATUS GpuContextSpecificNext::Init3DCtx(PMOS_CONTEXT osParameters,
 
 MOS_STATUS GpuContextSpecificNext::InitComputeCtx(PMOS_CONTEXT osParameters,
                 unsigned int *nengine,
-                void *engine_map,
+                struct i915_engine_class_instance *engine_map,
                 MOS_GPU_NODE gpuNode,
                 bool *isEngineSelectEnable)
 {
     MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
 
-    m_i915Context[0] = mos_context_create_shared(osParameters->bufmgr,
+    m_i915Context[0] = mos_gem_context_create_shared(osParameters->bufmgr,
                                              osParameters->intel_context,
                                              I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE,
-                                             m_bProtectedContext,
-                                             engine_map,
-                                             1,
-                                             *nengine,
-                                             0);
+                                             m_bProtectedContext);
     if (m_i915Context[0] == nullptr)
     {
         MOS_OS_ASSERTMESSAGE("Failed to create context.\n");
@@ -317,7 +276,7 @@ MOS_STATUS GpuContextSpecificNext::InitComputeCtx(PMOS_CONTEXT osParameters,
 #if (_DEBUG || _RELEASE_INTERNAL)
     *isEngineSelectEnable = SelectEngineInstanceByUser(engine_map, nengine, m_engineInstanceSelect, gpuNode);
 #endif
-    if (mos_set_context_param_load_balance(m_i915Context[0], (struct i915_engine_class_instance *)engine_map, *nengine))
+    if (mos_set_context_param_load_balance(m_i915Context[0], engine_map, *nengine))
     {
         MOS_OS_ASSERTMESSAGE("Failed to set balancer extension.\n");
         return MOS_STATUS_UNKNOWN;
@@ -330,7 +289,7 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
                 MOS_STREAM_HANDLE streamState,
                 PMOS_GPUCTX_CREATOPTIONS createOption,
                 unsigned int *nengine,
-                void *engine_map,
+                struct i915_engine_class_instance *engine_map,
                 MOS_GPU_NODE gpuNode,
                 bool *isEngineSelectEnable)
 {
@@ -338,20 +297,15 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
 
     MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
 
-    m_i915Context[0] = mos_context_create_shared(osParameters->bufmgr,
+    m_i915Context[0] = mos_gem_context_create_shared(osParameters->bufmgr,
                                              osParameters->intel_context,
                                              I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE,
-                                             m_bProtectedContext,
-                                             engine_map,
-                                             1,
-                                             *nengine,
-                                             0);
+                                             m_bProtectedContext);
     if (m_i915Context[0] == nullptr)
     {
         MOS_OS_ASSERTMESSAGE("Failed to create context.\n");
         return MOS_STATUS_UNKNOWN;
     }
-    struct i915_engine_class_instance *_engine_map = (struct i915_engine_class_instance *)engine_map;
     m_i915Context[0]->pOsContext = osParameters;
 
     __u16 engine_class = (gpuNode == MOS_GPU_NODE_VE)? I915_ENGINE_CLASS_VIDEO_ENHANCE : I915_ENGINE_CLASS_VIDEO;
@@ -359,16 +313,16 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
 
     SetEngineQueryFlags(createOption, caps);
 
-    if (mos_query_engines(osParameters->bufmgr, engine_class, caps, nengine, (void *)_engine_map))
+    if (mos_query_engines(osParameters->bufmgr, engine_class, caps, nengine, engine_map))
     {
         MOS_OS_ASSERTMESSAGE("Failed to query engines.\n");
         return MOS_STATUS_UNKNOWN;
     }
 
 #if (_DEBUG || _RELEASE_INTERNAL)
-    *isEngineSelectEnable = SelectEngineInstanceByUser((void *)_engine_map, nengine, m_engineInstanceSelect, gpuNode);
+    *isEngineSelectEnable = SelectEngineInstanceByUser(engine_map, nengine, m_engineInstanceSelect, gpuNode);
 #endif
-    if (mos_set_context_param_load_balance(m_i915Context[0], _engine_map, *nengine))
+    if (mos_set_context_param_load_balance(m_i915Context[0], engine_map, *nengine))
     {
         MOS_OS_ASSERTMESSAGE("Failed to set balancer extension.\n");
         return MOS_STATUS_UNKNOWN;
@@ -378,14 +332,10 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
     {
         int i;
         //master queue
-        m_i915Context[1] = mos_context_create_shared(osParameters->bufmgr,
+        m_i915Context[1] = mos_gem_context_create_shared(osParameters->bufmgr,
                                                             osParameters->intel_context,
                                                             I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE,
-                                                            m_bProtectedContext,
-                                                            (void *)_engine_map,
-                                                            1,
-                                                            1,
-                                                            0);
+                                                            m_bProtectedContext);
         if (m_i915Context[1] == nullptr)
         {
             MOS_OS_ASSERTMESSAGE("Failed to create master context.\n");
@@ -393,7 +343,7 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
         }
         m_i915Context[1]->pOsContext = osParameters;
 
-        if (mos_set_context_param_load_balance(m_i915Context[1], _engine_map, 1))
+        if (mos_set_context_param_load_balance(m_i915Context[1], engine_map, 1))
         {
             MOS_OS_ASSERTMESSAGE("Failed to set master context bond extension.\n");
             return MOS_STATUS_UNKNOWN;
@@ -402,14 +352,10 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
         //slave queue
         for (i=1; i < *nengine; i++)
         {
-            m_i915Context[i+1] = mos_context_create_shared(osParameters->bufmgr,
+            m_i915Context[i+1] = mos_gem_context_create_shared(osParameters->bufmgr,
                                                                 osParameters->intel_context,
                                                                 I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE,
-                                                                m_bProtectedContext,
-                                                                (void *)_engine_map,
-                                                                1,
-                                                                1,
-                                                                0);
+                                                                m_bProtectedContext);
             if (m_i915Context[i+1] == nullptr)
             {
                 MOS_OS_ASSERTMESSAGE("Failed to create slave context.\n");
@@ -417,13 +363,13 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
             }
             m_i915Context[i+1]->pOsContext = osParameters;
 
-            if (mos_set_context_param_bond(m_i915Context[i+1], _engine_map[0], &_engine_map[i], 1) != S_SUCCESS)
+            if (mos_set_context_param_bond(m_i915Context[i+1], engine_map[0], &engine_map[i], 1) != S_SUCCESS)
             {
                 int err = errno;
                 if (err == ENODEV)
                 {
-                    mos_context_destroy(m_i915Context[1]);
-                    mos_context_destroy(m_i915Context[i+1]);
+                    mos_gem_context_destroy(m_i915Context[1]);
+                    mos_gem_context_destroy(m_i915Context[i+1]);
                     m_i915Context[i+1] = nullptr;
                     break;
                 }
@@ -436,27 +382,23 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
         }
         if (i == *nengine)
         {
-            streamState->bParallelSubmission = false;
+            streamState->bGucSubmission = false;
         }
         else
         {
-            streamState->bParallelSubmission = true;
+            streamState->bGucSubmission = true;
             //create context with different width
             for(i = 1; i < *nengine; i++)
             {
                 unsigned int ctxWidth = i + 1;
-                m_i915Context[i] = mos_context_create_shared(osParameters->bufmgr,
+                m_i915Context[i] = mos_gem_context_create_shared(osParameters->bufmgr,
                                                              osParameters->intel_context,
                                                              0, // I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE not allowed for parallel submission
-                                                             m_bProtectedContext,
-                                                             (void *)_engine_map,
-                                                             ctxWidth,
-                                                             1,
-                                                             0);
-                if (mos_set_context_param_parallel(m_i915Context[i], _engine_map, ctxWidth) != S_SUCCESS)
+                                                             m_bProtectedContext);
+                if (mos_set_context_param_parallel(m_i915Context[i], engine_map, ctxWidth) != S_SUCCESS)
                 {
                     MOS_OS_ASSERTMESSAGE("Failed to set parallel extension since discontinuous logical engine.\n");
-                    mos_context_destroy(m_i915Context[i]);
+                    mos_gem_context_destroy(m_i915Context[i]);
                     m_i915Context[i] = nullptr;
                     break;
                 }
@@ -469,20 +411,16 @@ MOS_STATUS GpuContextSpecificNext::InitVdVeCtx(PMOS_CONTEXT osParameters,
 
 MOS_STATUS GpuContextSpecificNext::InitBltCtx(PMOS_CONTEXT osParameters,
                 unsigned int *nengine,
-                void *engine_map)
+                struct i915_engine_class_instance *engine_map)
 {
     MOS_OS_FUNCTION_ENTER;
 
     MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
 
-    m_i915Context[0] = mos_context_create_shared(osParameters->bufmgr,
+    m_i915Context[0] = mos_gem_context_create_shared(osParameters->bufmgr,
                                              osParameters->intel_context,
                                              I915_CONTEXT_CREATE_FLAGS_SINGLE_TIMELINE,
-                                             m_bProtectedContext,
-                                             engine_map,
-                                             1,
-                                             *nengine,
-                                             0);
+                                             m_bProtectedContext);
     if (m_i915Context[0] == nullptr)
     {
         MOS_OS_ASSERTMESSAGE("Failed to create context.\n");
@@ -499,7 +437,7 @@ MOS_STATUS GpuContextSpecificNext::InitBltCtx(PMOS_CONTEXT osParameters,
         return MOS_STATUS_UNKNOWN;
     }
 
-    if (mos_set_context_param_load_balance(m_i915Context[0], (struct i915_engine_class_instance *)engine_map, *nengine))
+    if (mos_set_context_param_load_balance(m_i915Context[0], engine_map, *nengine))
     {
         MOS_OS_ASSERTMESSAGE("Failed to set balancer extension.\n");
         return MOS_STATUS_UNKNOWN;
@@ -594,8 +532,7 @@ MOS_STATUS GpuContextSpecificNext::Init(OsContextNext *osContext,
     {
         bool         isEngineSelectEnable = false;
         unsigned int nengine              = 0;
-        size_t       engine_class_size    = 0;
-        void         *engine_map          = nullptr;
+        struct i915_engine_class_instance *engine_map = nullptr;
 
         MOS_TraceEventExt(EVENT_GPU_CONTEXT_CREATE, EVENT_TYPE_START,
                           &gpuNode, sizeof(gpuNode), nullptr, 0);
@@ -607,13 +544,7 @@ MOS_STATUS GpuContextSpecificNext::Init(OsContextNext *osContext,
             MOS_OS_ASSERTMESSAGE("Failed to query engines count.\n");
             return MOS_STATUS_UNKNOWN;
         }
-        engine_class_size = mos_get_engine_class_size(osParameters->bufmgr);
-        if (!engine_class_size)
-        {
-            MOS_OS_ASSERTMESSAGE("Failed to get engine class instance size.\n");
-            return MOS_STATUS_UNKNOWN;
-        }
-        engine_map = MOS_AllocAndZeroMemory(nengine * engine_class_size);
+        engine_map = (struct i915_engine_class_instance *)MOS_AllocAndZeroMemory(nengine * sizeof(struct i915_engine_class_instance));
         MOS_OS_CHK_NULL_RETURN(engine_map);
 
         if (gpuNode == MOS_GPU_NODE_3D)
@@ -649,6 +580,8 @@ MOS_STATUS GpuContextSpecificNext::Init(OsContextNext *osContext,
                           m_i915Context, sizeof(void *),
                           &nengine, sizeof(nengine));
     }
+
+    MOS_OS_CHK_STATUS_RETURN(ReportMemoryInfo(osParameters->bufmgr));
 
     return eStatus;
 }
@@ -691,21 +624,16 @@ void GpuContextSpecificNext::Clear()
     MosUtilities::MosDestroyMutex(m_cmdBufPoolMutex);
     m_cmdBufPoolMutex = nullptr;
     MOS_SafeFreeMemory(m_commandBuffer);
-    m_commandBuffer = nullptr;
     MOS_SafeFreeMemory(m_allocationList);
-    m_allocationList = nullptr;
     MOS_SafeFreeMemory(m_patchLocationList);
-    m_patchLocationList = nullptr;
     MOS_SafeFreeMemory(m_attachedResources);
-    m_attachedResources = nullptr;
     MOS_SafeFreeMemory(m_writeModeList);
-    m_writeModeList = nullptr;
 
     for (int i=0; i<MAX_ENGINE_INSTANCE_NUM; i++)
     {
         if (m_i915Context[i])
         {
-            mos_context_destroy(m_i915Context[i]);
+            mos_gem_context_destroy(m_i915Context[i]);
             m_i915Context[i] = nullptr;
         }
     }
@@ -1321,7 +1249,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
             resource));
 
         uint64_t boOffset = alloc_bo->offset64;
-        if (!mos_bo_is_softpin(alloc_bo))
+        if (!mos_gem_bo_is_softpin(alloc_bo))
         {
             if (alloc_bo != tempCmdBo)
             {
@@ -1356,7 +1284,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
             {
                 if (it->second->OsResource.bo == tempCmdBo &&
                     it->second->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_SLAVE &&
-                    !mos_bo_is_exec_object_async(alloc_bo))
+                    !mos_gem_bo_is_exec_object_async(alloc_bo))
                 {
                     skipSyncBoList.push_back(alloc_bo);
                     break;
@@ -1365,7 +1293,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
             }
         }
         else if (cmdBuffer->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_SLAVE &&
-                 !mos_bo_is_exec_object_async(alloc_bo))
+                 !mos_gem_bo_is_exec_object_async(alloc_bo))
         {
             skipSyncBoList.push_back(alloc_bo);
         }
@@ -1379,7 +1307,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
         }
 #endif
 
-        if(mos_bo_is_softpin(alloc_bo))
+        if(mos_gem_bo_is_softpin(alloc_bo))
         {
             if (alloc_bo != tempCmdBo)
             {
@@ -1389,7 +1317,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
         else
         {
             // This call will patch the command buffer with the offsets of the indirect state region of the command buffer
-            ret = mos_bo_emit_reloc(
+            ret = mos_bo_emit_reloc2(
                 tempCmdBo,                                                         // Command buffer
                 currentPatch->PatchOffset,                                         // Offset in the command buffer
                 alloc_bo,                                                          // Allocation object for which the patch will be made.
@@ -1545,7 +1473,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
         {
             if (cmdBuffer->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_MASK)
             {
-                if (scalaEnabled && !streamState->bParallelSubmission)
+                if (scalaEnabled && !streamState->bGucSubmission)
                 {
                     uint32_t secondaryIndex = 0;
                     it = m_secondaryCmdBufs.begin();
@@ -1569,7 +1497,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
                         it++;
                     }
                 }
-                else if(scalaEnabled && streamState->bParallelSubmission)
+                else if(scalaEnabled && streamState->bGucSubmission)
                 {
                     ret = ParallelSubmitCommands(m_secondaryCmdBufs,
                                          perStreamParameters,
@@ -1588,7 +1516,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
             }
             else
             {
-                ret = mos_bo_context_exec2(cmd_bo,
+                ret = mos_gem_bo_context_exec2(cmd_bo,
                     m_commandBufferSize,
                     m_i915Context[0],
                     cliprects,
@@ -1600,7 +1528,7 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
         }
         else
         {
-            ret = mos_bo_context_exec2(cmd_bo,
+            ret = mos_gem_bo_context_exec2(cmd_bo,
                 m_commandBufferSize,
                 perStreamParameters->intel_context,
                 cliprects,
@@ -1661,7 +1589,7 @@ if (streamState->dumpCommandBuffer)
         MOS_OS_CHK_NULL_RETURN(currentPatch);
 
         if(currentPatch->cmdBo)
-            mos_bo_clear_relocs(currentPatch->cmdBo, 0);
+            mos_gem_bo_clear_relocs(currentPatch->cmdBo, 0);
     }
 
     it = m_secondaryCmdBufs.begin();
@@ -1764,14 +1692,19 @@ int32_t GpuContextSpecificNext::SubmitPipeCommands(
         }
     }
 
-    if(cmdBuffer->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_MASTER)
+    //Keep FE and BE0 running on same engine for VT decode
+    if((cmdBuffer->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_ALONE)
+        || (cmdBuffer->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_MASTER))
     {
-        //Only master pipe needs fence out flag
-        fence_flag = I915_EXEC_FENCE_OUT;
+        if(cmdBuffer->iSubmissionType & SUBMISSION_TYPE_MULTI_PIPE_MASTER)
+        {
+            //Only master pipe needs fence out flag
+            fence_flag = I915_EXEC_FENCE_OUT;
+        }
         queue = m_i915Context[1];
     }
 
-    ret = mos_bo_context_exec2(cmdBo,
+    ret = mos_gem_bo_context_exec2(cmdBo,
                                   cmdBo->size,
                                   queue,
                                   nullptr,
@@ -1826,7 +1759,7 @@ int32_t GpuContextSpecificNext::ParallelSubmitCommands(
             fenceFlag = I915_EXEC_FENCE_OUT;
             queue = m_i915Context[0];
 
-            ret = mos_bo_context_exec2(it->second->OsResource.bo,
+            ret = mos_gem_bo_context_exec2(it->second->OsResource.bo,
                                   it->second->OsResource.bo->size,
                                   queue,
                                   nullptr,
@@ -1852,7 +1785,7 @@ int32_t GpuContextSpecificNext::ParallelSubmitCommands(
                     fenceFlag = I915_EXEC_FENCE_IN;
                 }
 
-                ret = mos_bo_context_exec3(cmdBos,
+                ret = mos_gem_bo_context_exec3(cmdBos,
                                               numBos,
                                               queue,
                                               nullptr,
@@ -1985,11 +1918,10 @@ PMOS_RESOURCE GpuContextSpecificNext::GetOcaRTLogResource(PMOS_RESOURCE globalIn
 }
 
 #if (_DEBUG || _RELEASE_INTERNAL)
-bool GpuContextSpecificNext::SelectEngineInstanceByUser(void *engine_map,
+bool GpuContextSpecificNext::SelectEngineInstanceByUser(struct i915_engine_class_instance *engineMap,
         uint32_t *engineNum, uint32_t userEngineInstance, MOS_GPU_NODE gpuNode)
 {
     uint32_t engineInstance     = 0x0;
-    struct i915_engine_class_instance *engineMap = (struct i915_engine_class_instance *)engine_map;
 
     if(gpuNode == MOS_GPU_NODE_COMPUTE)
     {

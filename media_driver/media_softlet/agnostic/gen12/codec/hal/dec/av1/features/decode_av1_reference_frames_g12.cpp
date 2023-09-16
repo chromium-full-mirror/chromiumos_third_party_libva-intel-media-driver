@@ -145,10 +145,6 @@ namespace decode
         for(auto i = 0; i < av1NumInterRefFrames; i++)
         {
             auto index = m_picParams->m_refFrameIdx[i];
-            if (index >= av1TotalRefsPerFrame)
-            {
-                continue;
-            }
             uint8_t frameIdx = m_picParams->m_refFrameMap[index].FrameIdx;
             if (frameIdx >= m_basicFeature->m_maxFrameIndex)
             {
@@ -533,6 +529,7 @@ namespace decode
             {
                 if (hasValidRefIndex == false)
                 {
+                    uint8_t validfPicIndex = 0;
                     //Get valid reference frame index
                     hr = GetValidReferenceIndex(&validfPicIndex);
                     hasValidRefIndex = true;

@@ -429,43 +429,88 @@ public:
             }
         }
 
-        if (params.pOsResAVSLineBuffer)
+        if (m_sfcScalabilityEnabled == true)
         {
-            MOS_ZeroMemory(&resourceParams, sizeof(resourceParams));
-            resourceParams.presResource    = params.pOsResAVSLineBuffer;
-            resourceParams.pdwCmd          = &(cmd.DW20.Value);
-            resourceParams.dwLocationInCmd = 20;
-            resourceParams.HwCommandType   = MOS_SFC_STATE;
-            resourceParams.bIsWritable     = true;
-            InitMocsParams(resourceParams, &cmd.DW22.Value, 1, 6);
-            MHW_CHK_STATUS_RETURN(AddResourceToCmd(
-                pOsInterface,
-                m_currentCmdBuf,
-                &resourceParams));
-            // Set DW22
-            if (m_avsLineBufferCtrl.Gen12_7.Index != 0)
+            if (params.pOsResAVSLineBufferSplit[m_indexofSfc])
             {
-                cmd.DW22.AvsLineBufferBaseAddressIndexToMemoryObjectControlStateMocsTables = m_avsLineBufferCtrl.Gen12_7.Index;
+                MOS_ZeroMemory(&resourceParams, sizeof(resourceParams));
+                resourceParams.presResource    = params.pOsResAVSLineBufferSplit[m_indexofSfc];
+                resourceParams.pdwCmd          = &(cmd.DW20.Value);
+                resourceParams.dwLocationInCmd = 20;
+                resourceParams.HwCommandType   = MOS_SFC_STATE;
+                resourceParams.bIsWritable     = true;
+                InitMocsParams(resourceParams, &cmd.DW22.Value, 1, 6);
+                MHW_CHK_STATUS_RETURN(AddResourceToCmd(
+                    pOsInterface,
+                    m_currentCmdBuf,
+                    &resourceParams));
+                // Set DW22
+                if (m_avsLineBufferCtrl.Gen12_7.Index != 0)
+                {
+                    cmd.DW22.AvsLineBufferBaseAddressIndexToMemoryObjectControlStateMocsTables = m_avsLineBufferCtrl.Gen12_7.Index;
+                }
+            }
+
+            if (params.pOsResIEFLineBufferSplit[m_indexofSfc])
+            {
+                MOS_ZeroMemory(&resourceParams, sizeof(resourceParams));
+                resourceParams.presResource    = params.pOsResIEFLineBufferSplit[m_indexofSfc];
+                resourceParams.pdwCmd          = &(cmd.DW23.Value);
+                resourceParams.dwLocationInCmd = 23;
+                resourceParams.HwCommandType   = MOS_SFC_STATE;
+                resourceParams.bIsWritable     = true;
+                InitMocsParams(resourceParams, &cmd.DW25.Value, 1, 6);
+                MHW_CHK_STATUS_RETURN(AddResourceToCmd(
+                    pOsInterface,
+                    m_currentCmdBuf,
+                    &resourceParams));
+                // Set DW25
+                if (m_iefLineBufferCtrl.Gen12_7.Index != 0)
+                {
+                    cmd.DW25.IefLineBufferBaseAddressIndexToMemoryObjectControlStateMocsTables = m_iefLineBufferCtrl.Gen12_7.Index;
+                }
             }
         }
-
-        if (params.pOsResIEFLineBuffer)
+        else
         {
-            MOS_ZeroMemory(&resourceParams, sizeof(resourceParams));
-            resourceParams.presResource    = params.pOsResIEFLineBuffer;
-            resourceParams.pdwCmd          = &(cmd.DW23.Value);
-            resourceParams.dwLocationInCmd = 23;
-            resourceParams.HwCommandType   = MOS_SFC_STATE;
-            resourceParams.bIsWritable     = true;
-            InitMocsParams(resourceParams, &cmd.DW25.Value, 1, 6);
-            MHW_CHK_STATUS_RETURN(AddResourceToCmd(
-                pOsInterface,
-                m_currentCmdBuf,
-                &resourceParams));
-            // Set DW25
-            if (m_iefLineBufferCtrl.Gen12_7.Index != 0)
+            if (params.pOsResAVSLineBuffer)
             {
-                cmd.DW25.IefLineBufferBaseAddressIndexToMemoryObjectControlStateMocsTables = m_iefLineBufferCtrl.Gen12_7.Index;
+                MOS_ZeroMemory(&resourceParams, sizeof(resourceParams));
+                resourceParams.presResource    = params.pOsResAVSLineBuffer;
+                resourceParams.pdwCmd          = &(cmd.DW20.Value);
+                resourceParams.dwLocationInCmd = 20;
+                resourceParams.HwCommandType   = MOS_SFC_STATE;
+                resourceParams.bIsWritable     = true;
+                InitMocsParams(resourceParams, &cmd.DW22.Value, 1, 6);
+                MHW_CHK_STATUS_RETURN(AddResourceToCmd(
+                    pOsInterface,
+                    m_currentCmdBuf,
+                    &resourceParams));
+                // Set DW22
+                if (m_avsLineBufferCtrl.Gen12_7.Index != 0)
+                {
+                    cmd.DW22.AvsLineBufferBaseAddressIndexToMemoryObjectControlStateMocsTables = m_avsLineBufferCtrl.Gen12_7.Index;
+                }
+            }
+
+            if (params.pOsResIEFLineBuffer)
+            {
+                MOS_ZeroMemory(&resourceParams, sizeof(resourceParams));
+                resourceParams.presResource    = params.pOsResIEFLineBuffer;
+                resourceParams.pdwCmd          = &(cmd.DW23.Value);
+                resourceParams.dwLocationInCmd = 23;
+                resourceParams.HwCommandType   = MOS_SFC_STATE;
+                resourceParams.bIsWritable     = true;
+                InitMocsParams(resourceParams, &cmd.DW25.Value, 1, 6);
+                MHW_CHK_STATUS_RETURN(AddResourceToCmd(
+                    pOsInterface,
+                    m_currentCmdBuf,
+                    &resourceParams));
+                // Set DW25
+                if (m_iefLineBufferCtrl.Gen12_7.Index != 0)
+                {
+                    cmd.DW25.IefLineBufferBaseAddressIndexToMemoryObjectControlStateMocsTables = m_iefLineBufferCtrl.Gen12_7.Index;
+                }
             }
         }
 

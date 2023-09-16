@@ -25,7 +25,9 @@
 //!
 #include "encode_hevc_vdenc_pipeline_xe_lpm_plus.h"
 #include "encode_hevc_vdenc_feature_manager_xe_lpm_plus.h"
-#include "encode_hevc_vdenc_422_packet.h"
+#ifdef _ENCODE_RESERVED
+#include "encode_hevc_vdenc_packet_rsvd.h"
+#endif
 
 namespace encode {
 
@@ -51,12 +53,14 @@ MOS_STATUS HevcVdencPipelineXe_Lpm_Plus::Init(void *settings)
 
     ENCODE_CHK_STATUS_RETURN(HevcVdencPipelineXe_Lpm_Plus_Base::Init(settings));
 
+#ifdef _ENCODE_RESERVED
     MediaTask* task = GetTask(MediaTask::TaskType::cmdTask);
     ENCODE_CHK_NULL_RETURN(task);
 
-    HevcVdencPkt422* hevcVdencpkt422 = MOS_New(HevcVdencPkt422, this, task, m_hwInterface);
-    ENCODE_CHK_STATUS_RETURN(RegisterPacket(hevcVdencPacket422, hevcVdencpkt422));
-    ENCODE_CHK_STATUS_RETURN(hevcVdencpkt422->Init());
+    HevcVdencPktRsvd* hevcVdencPktRsvd = MOS_New(HevcVdencPktRsvd, this, task, m_hwInterface);
+    ENCODE_CHK_STATUS_RETURN(RegisterPacket(hevcVdencPacketRsvd, hevcVdencPktRsvd));
+    ENCODE_CHK_STATUS_RETURN(hevcVdencPktRsvd->Init());
+#endif
 
     return MOS_STATUS_SUCCESS;
 }
@@ -67,15 +71,16 @@ MOS_STATUS HevcVdencPipelineXe_Lpm_Plus::ActivateVdencVideoPackets()
 
     ENCODE_CHK_STATUS_RETURN(HevcVdencPipelineXe_Lpm_Plus_Base::ActivateVdencVideoPackets());
 
+#ifdef _ENCODE_RESERVED
     auto basicFeature = dynamic_cast<HevcBasicFeature *>(m_featureManager->GetFeature(FeatureIDs::basicFeature));
     ENCODE_CHK_NULL_RETURN(basicFeature);
-    if (basicFeature->m_422State && basicFeature->m_422State->GetFeature422Flag())
+    if (basicFeature->m_rsvdState && basicFeature->m_rsvdState->GetFeatureRsvdFlag())
     {
         m_activePacketList.front().frameTrackingRequested = false;
-        ENCODE_CHK_STATUS_RETURN(ActivatePacket(hevcVdencPacket422, true, 0, 0));
+        ENCODE_CHK_STATUS_RETURN(ActivatePacket(hevcVdencPacketRsvd, true, 0, 0));
     }
+#endif
 
-    SetFrameTrackingForMultiTaskPhase();
     return MOS_STATUS_SUCCESS;
 }
 

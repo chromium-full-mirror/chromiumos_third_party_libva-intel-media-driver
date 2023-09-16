@@ -359,8 +359,7 @@ bool SwFilterDnHandler::IsFeatureEnabled(VP_PIPELINE_PARAMS& params, bool isInpu
     PVP_MHWINTERFACE hwInterface = m_vpInterface.GetHwInterface();
     // secure mode
     if (hwInterface->m_osInterface->osCpInterface &&
-        (hwInterface->m_osInterface->osCpInterface->IsHMEnabled() 
-            || hwInterface->m_osInterface->osCpInterface->IsIDMEnabled()))
+        hwInterface->m_osInterface->osCpInterface->IsHMEnabled())
     {
         VP_PUBLIC_NORMALMESSAGE("Dn is disabled in secure mode.");
         return false;
@@ -827,11 +826,6 @@ bool SwFilterBlendingHandler::IsFeatureEnabled(VP_PIPELINE_PARAMS& params, bool 
     PVPHAL_SURFACE surf = isInputSurf ? params.pSrc[surfIndex] : params.pTarget[surfIndex];
     if (surf && surf->pBlendingParams)
     {
-        if (!isInputSurf)
-        {
-            VP_PUBLIC_NORMALMESSAGE("Skip blending parameters on target.");
-            return false;
-        }
         return true;
     }
 

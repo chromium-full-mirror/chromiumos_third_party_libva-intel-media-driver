@@ -34,7 +34,11 @@
 #include "mhw_vdbox_vdenc_itf.h"
 #include "mhw_vdbox_hcp_itf.h"
 #include "encode_mem_compression.h"
-#include "encode_hevc_basic_feature_422.h"
+
+#ifdef _ENCODE_RESERVED
+#include "encode_hevc_basic_feature_rsvd.h"
+#endif
+
 namespace encode
 {
 #define CODECHAL_HEVC_VDENC_LCU_SIZE           64
@@ -131,12 +135,13 @@ public:
     bool m_hevcVdencWeightedPredEnabled = false;
     uint32_t m_prevStoreData = -1;  // Change to -1 since FrameIdx starts from 0; Legacy path initialized to be 0 since FrameIdx starts from 1;
     uint32_t m_vdencBatchBufferPerSliceVarSize[ENCODE_HEVC_VDENC_NUM_MAX_SLICES] = { 0 };    //!< VDEnc batch buffer slice size array
-    uint32_t m_vdencBatchBufferPerSlicePart2Start[ENCODE_HEVC_VDENC_NUM_MAX_SLICES] = {0};  //!< VDEnc batch buffer slice size array
 
     uint32_t m_picStateCmdStartInBytes = 0;       //!< Offset of PIC_STATE cmd in batch buffer
 
-    HevcBasicFeature422 *m_422State= nullptr;
-    MOS_STATUS            Init422State();
+#ifdef _ENCODE_RESERVED
+    HevcBasicFeatureRsvd *m_rsvdState = nullptr;
+    MOS_STATUS            InitRsvdState();
+#endif
 
     std::deque<uint32_t> m_recycleBufferIdxes;
 
@@ -156,9 +161,6 @@ protected:
     //!
     MOS_STATUS CalcLCUMaxCodingSize();
     virtual MOS_STATUS GetRecycleBuffers();
-
-    void CreateDefaultScalingList();
-    void CreateFlatScalingList();
 
 MEDIA_CLASS_DEFINE_END(encode__HevcBasicFeature)
 };

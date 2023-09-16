@@ -150,15 +150,8 @@ VpPipelineAdapterBase::~VpPipelineAdapterBase()
 
     if (m_cpInterface)
     {
-        if (m_osInterface)
-        {
-            m_osInterface->pfnDeleteMhwCpInterface(m_cpInterface);
-            m_cpInterface = nullptr;
-        }
-        else
-        {
-            VP_PUBLIC_ASSERTMESSAGE("Failed to destroy cpInterface.");
-        }
+        Delete_MhwCpInterface(m_cpInterface);
+        m_cpInterface = nullptr;
     }
 
     if (m_sfcItf)

@@ -1,5 +1,5 @@
 ﻿/*
-* Copyright (c) 2019-2023, Intel Corporation
+* Copyright (c) 2019-2021, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -154,6 +154,15 @@ MOS_STATUS Av1ReferenceFrames::Update()
     m_refCompressionFormat = MmcEnabled(m_refMmcState[intraFrame])? compressionFormat : m_refCompressionFormat;
     return MOS_STATUS_SUCCESS;
 
+}
+
+MOS_STATUS Av1ReferenceFrames::UpdateEncRefBufType(BufferType ref, BufferType ref4x, BufferType ref8x)
+{
+    m_encRefBufType   = ref;
+    m_enc4xRefBufType = ref4x;
+    m_enc8xRefBufType = ref8x;
+
+    return MOS_STATUS_SUCCESS;
 }
 
 MOS_STATUS Av1ReferenceFrames::UpdateRefFrameSize(uint32_t width, uint32_t height)
@@ -582,26 +591,6 @@ void Av1ReferenceFrames::GetRefFramePOC(int32_t (&refsPOCList)[15], int32_t cons
     }
 }
 
-int32_t Av1ReferenceFrames::GetFrameDisplayOrder()
-{
-    const auto picParams = m_basicFeature->m_av1PicParams;
-
-    int32_t displayOrder = 0;
-    if (picParams->PicFlags.fields.frame_type == keyFrame)
-    {
-        displayOrder = m_frameOut;
-    }
-    else
-    {
-        auto dist = GetRelativeDist(m_currRefList->m_orderHint, m_prevFrameOffset);
-        displayOrder = m_prevFrameDisplayerOrder + dist;
-    }
-    m_prevFrameOffset = m_currRefList->m_orderHint;
-    m_prevFrameDisplayerOrder = displayOrder;
-    m_frameOut++;
-    return displayOrder;
-}
-
 bool Av1ReferenceFrames::CheckSegmentForPrimeFrame()
 {
     ENCODE_FUNC_CALL();
@@ -793,10 +782,6 @@ MHW_SETPAR_DECL_SRC(VDENC_CMD2, Av1ReferenceFrames)
 
 MHW_SETPAR_DECL_SRC(AVP_PIC_STATE, Av1ReferenceFrames)
 {
-    ENCODE_FUNC_CALL();
-
-    params.postCdefReconPixelStreamoutEn = m_encUsePostCdefAsRef ? true : false;
-
     params.refFrameRes[intraFrame]    = CAT2SHORTS(m_currRefList->m_frameWidth - 1, m_currRefList->m_frameHeight - 1);
     params.refScaleFactor[intraFrame] = CAT2SHORTS(m_av1ScalingFactor, m_av1ScalingFactor);
     params.refOrderHints[intraFrame]  = m_currRefList->m_orderHint;

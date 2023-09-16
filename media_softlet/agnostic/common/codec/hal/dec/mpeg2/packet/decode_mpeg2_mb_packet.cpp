@@ -61,7 +61,7 @@ MOS_STATUS Mpeg2DecodeMbPkt::Prepare()
 
 void Mpeg2DecodeMbPkt::PackMotionVectors(CODEC_PICTURE_FLAG pic_flag, uint32_t mbIdx, int16_t sPackedMVs0[], int16_t sPackedMVs1[])
 {
-    CodecDecodeMpeg2MbParams *mbParams = &m_mpeg2BasicFeature->m_mbRecord[mbIdx].recordMbParam;
+    CodecDecodeMpeg2MbParmas *mbParams = &m_mpeg2BasicFeature->m_mbRecord[mbIdx].recordMbParam;
 
     uint16_t motionType = mbParams->MBType.m_motionType;
     uint16_t intelMotionType = Mpeg2ImtNone;
@@ -189,10 +189,9 @@ MOS_STATUS Mpeg2DecodeMbPkt::AddCmd_MFD_MPEG2_IT_OBJECT(MHW_BATCH_BUFFER &batchB
         }
     }
 
-    headerPar.DwordLength = ((m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT_MPEG2_INLINE_DATA)() +
-                                m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT)()) >> 2) - 2;
+    headerPar.DwordLength = (m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT_MPEG2_INLINE_DATA)() +
+                                m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT)()) >> 2;
     headerPar.dwDCTLength = dwDCTLength;
-    headerPar.IndirectItCoeffDataStartAddressOffset = mbParams->m_mbDataLoc << 2;
 
     inlinePar.CodingType        = m_mpeg2PicParams->m_pictureCodingType;
     inlinePar.pMBParams         = mbParams;
@@ -216,16 +215,15 @@ MOS_STATUS Mpeg2DecodeMbPkt::AddAllCmdsInsertSkippedMacroblocks(MHW_BATCH_BUFFER
     MHW_MI_CHK_NULL(mbParams);
 
     // save the original MB params, and restore the orignal MB params when function exit.
-    CodechalDecodeRestoreData<CodecDecodeMpeg2MbParams> MBParamsRestore(mbParams);
+    CodechalDecodeRestoreData<CodecDecodeMpeg2MbParmas> MBParamsRestore(mbParams);
 
     auto &inlinePar = m_mfxItf->MHW_GETPAR_F(MFD_IT_OBJECT_MPEG2_INLINE_DATA)();
     auto &headerPar = m_mfxItf->MHW_GETPAR_F(MFD_IT_OBJECT)();
     inlinePar       = {};
     headerPar       = {};
 
-    headerPar.DwordLength = ((m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT_MPEG2_INLINE_DATA)() +
-                                m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT)()) >> 2) - 2;
-
+    headerPar.DwordLength = (m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT_MPEG2_INLINE_DATA)() +
+                                m_mfxItf->MHW_GETSIZE_F(MFD_IT_OBJECT)()) >> 2;
     headerPar.dwDCTLength = 0;
 
     inlinePar.CodingType        = m_mpeg2PicParams->m_pictureCodingType;

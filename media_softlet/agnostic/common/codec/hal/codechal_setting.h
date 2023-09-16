@@ -77,8 +77,6 @@ public:
 
     uint32_t                reservedMode = 0;
 
-    bool                    isDualEncEnabled = false;      //!< Flag to indicate if frame-split encoding in multi engies is needed
-
 
     //!
     //! \brief    Destructor 

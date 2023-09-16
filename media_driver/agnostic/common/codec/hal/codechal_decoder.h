@@ -512,7 +512,7 @@ public:
     //! \return   MOS_STATUS
     //!           MOS_STATUS_SUCCESS if success, else fail reason
     //!
-    virtual MOS_STATUS HucCopy(
+    MOS_STATUS HucCopy(
         PMOS_COMMAND_BUFFER cmdBuffer,
         PMOS_RESOURCE src,
         PMOS_RESOURCE dst,

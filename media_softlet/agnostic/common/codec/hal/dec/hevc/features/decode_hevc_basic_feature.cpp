@@ -184,7 +184,7 @@ MOS_STATUS HevcBasicFeature::ErrorDetectAndConceal()
     if (m_hevcPicParams->diff_cu_qp_delta_depth > m_hevcPicParams->log2_diff_max_min_luma_coding_block_size)
     {
         DECODE_ASSERTMESSAGE("diff_cu_qp_delta_depth %d is invalid\n", m_hevcPicParams->diff_cu_qp_delta_depth);
-        m_hevcPicParams->diff_cu_qp_delta_depth = 0;
+        return MOS_STATUS_INVALID_PARAMETER;
     }
 
     // cb_qp_offset range is [-12, 12]
@@ -267,24 +267,6 @@ MOS_STATUS HevcBasicFeature::ErrorDetectAndConceal()
             if (m_hevcPicParams->entropy_coding_sync_enabled_flag && m_hevcPicParams->tiles_enabled_flag)
             {
                 DECODE_ASSERTMESSAGE("Only SCC 4:4:4 allows both tiles_enabled_flag and entropy_coding_sync_enabled_flag to be on at the same time\n");
-            }
-        }
-    }
-
-    if (!m_shortFormatInUse)
-    {
-        for (uint32_t slcCount = 0; slcCount < m_numSlices; slcCount++)
-        {
-            for (uint32_t i = 0; i < 2; i++)
-            {
-                for (uint32_t j = 0; j < CODEC_MAX_NUM_REF_FRAME_HEVC; j++)
-                {
-                    if (m_hevcSliceParams->RefPicList[i][j].FrameIdx > 0x7f)
-                    {
-                        DECODE_ASSERTMESSAGE("Reference frame index is out of range\n");
-                        return MOS_STATUS_INVALID_PARAMETER;
-                    }
-                }
             }
         }
     }

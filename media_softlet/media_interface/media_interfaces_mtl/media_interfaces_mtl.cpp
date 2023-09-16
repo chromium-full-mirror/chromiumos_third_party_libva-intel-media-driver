@@ -159,7 +159,6 @@ MOS_STATUS MhwInterfacesXe_Lpm_Plus_Next::Initialize(
         MHW_ASSERTMESSAGE("The OS interface is not valid!");
         return MOS_STATUS_INVALID_PARAMETER;
     }
-    m_osInterface = osInterface;
 
     auto gtSystemInfo = osInterface->pfnGetGtSystemInfo(osInterface);
     if (gtSystemInfo == nullptr)
@@ -176,7 +175,7 @@ MOS_STATUS MhwInterfacesXe_Lpm_Plus_Next::Initialize(
 
     // MHW_CP and MHW_MI must always be create
     MOS_STATUS status;
-    m_cpInterface = osInterface->pfnCreateMhwCpInterface(osInterface);
+    m_cpInterface = Create_MhwCpInterface(osInterface);
     auto ptr      = std::make_shared<mhw::mi::xe_lpm_plus_base_next::Impl>(osInterface);
     m_miItf       = std::static_pointer_cast<mhw::mi::Itf>(ptr);
     ptr->SetCpInterface(m_cpInterface, m_miItf);

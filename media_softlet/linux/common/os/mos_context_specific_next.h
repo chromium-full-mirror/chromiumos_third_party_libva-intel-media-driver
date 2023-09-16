@@ -105,11 +105,6 @@ public:
         return m_fd;
     }
 
-    int GetDeviceType()
-    {
-        return m_deviceType;
-    }
-
 private:
     //!
     //! \brief  Performance specific switch for debug purpose
@@ -141,10 +136,6 @@ private:
     //!
     int32_t             m_fd            = -1;
 
-    //!
-    //! \brief  device type
-    //!
-    int                 m_deviceType   = DEVICE_TYPE_COUNT;
     AuxTableMgr         *m_auxTableMgr = nullptr;
     PERF_DATA           *m_perfData =   nullptr;
 MEDIA_CLASS_DEFINE_END(OsContextSpecificNext)

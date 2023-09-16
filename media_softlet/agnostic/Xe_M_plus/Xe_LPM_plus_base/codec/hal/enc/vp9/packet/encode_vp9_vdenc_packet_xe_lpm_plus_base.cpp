@@ -275,7 +275,7 @@ MOS_STATUS Vp9VdencPktXe_Lpm_Plus_Base::PatchPictureLevelCommands(MOS_COMMAND_BU
         if (m_pipeline->IsFirstPass())
         {
             // Reset multi-pipe sync semaphores
-            ENCODE_CHK_STATUS_RETURN(scalability->ResetSemaphore(syncOnePipeWaitOthers, m_pipeline->GetCurrentPipe(), &cmdBuffer));
+            ENCODE_CHK_STATUS_RETURN(scalability->ResetSemaphore(syncOnePipeWaitOthers, 0, &cmdBuffer));
         }
         if (m_basicFeature->m_hucEnabled)
         {
@@ -487,11 +487,8 @@ MOS_STATUS Vp9VdencPktXe_Lpm_Plus_Base::PatchTileLevelCommands(MOS_COMMAND_BUFFE
 {
     ENCODE_FUNC_CALL();
 
-    if (!m_basicFeature->m_hucEnabled)
-    {
-        // Construct pak insert batch buffer
-        RUN_FEATURE_INTERFACE_RETURN(Vp9EncodePak, Vp9FeatureIDs::vp9PakFeature, ConstructPakInsertObjBatchBuffer);
-    }
+    // Update and construct pak insert batch buffer
+    RUN_FEATURE_INTERFACE_RETURN(Vp9EncodePak, Vp9FeatureIDs::vp9PakFeature, ConstructPakInsertObjBatchBuffer);
 
     if (m_pipeline->IsFirstPipe())
     {

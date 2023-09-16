@@ -1022,8 +1022,7 @@ typedef struct _RENDERHAL_SURFACE_STATE_PARAMS
     uint32_t                        bChromasiting             : 1;              // Flag for chromasiting use
     uint32_t                        bVmeUse                   : 1;              // Flag for VME use
     uint32_t                        bBufferUse                : 1;              // Flags for 1D buffer use
-    uint32_t                        bSurfaceTypeDefined       : 1;
-    uint32_t                                                  : 2;
+    uint32_t                                                  : 3;
     RENDERHAL_MEMORY_OBJECT_CONTROL MemObjCtl;                                  // Caching attributes
 } RENDERHAL_SURFACE_STATE_PARAMS, *PRENDERHAL_SURFACE_STATE_PARAMS;
 
@@ -1263,10 +1262,6 @@ typedef struct _RENDERHAL_INTERFACE
     bool                        bIsAVS;
 
     bool                        isMMCEnabled;
-#if (_DEBUG || _RELEASE_INTERNAL)
-    // RT Old cacheSetting
-    uint32_t                    oldCacheSettingForTargetSurface = 0;
-#endif
 
     MediaPerfProfiler           *pPerfProfiler = nullptr; //!< Performance data profiler
     bool                        eufusionBypass = false;
