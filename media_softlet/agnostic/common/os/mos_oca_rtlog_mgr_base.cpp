@@ -1,5 +1,5 @@
-﻿/*
-* Copyright (c) 2019, Intel Corporation
+/*
+* Copyright (c) 2023, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -20,25 +20,23 @@
 * OTHER DEALINGS IN THE SOFTWARE.
 */
 //!
-//! \file    mos_gpucontext_next.cpp
-//! \brief   Container class for the basic gpu context
+//! \file     mos_oca_rtlog_mgr_base.cpp
+//! \brief    OCA buffer manager class
 //!
 
-#include "mos_gpucontext_specific_next.h"
+#include "mos_oca_rtlog_mgr_base.h"
+#include "oca_rtlog_section_mgr.h"
+#include "mos_context_specific_next.h"
 
-GpuContextNext *GpuContextNext::Create(
-    const MOS_GPU_NODE gpuNode,
-    CmdBufMgrNext         *cmdBufMgr,
-    GpuContextNext        *reusedContext,
-    OsContextNext         *osContext)
+bool MosOcaRTLogMgrBase::s_enableOcaRTLog = true;
+MosMutex MosOcaRTLogMgrBase::s_ocaMutex;
+bool MosOcaRTLogMgrBase::s_isOcaRtlogMgrDestoryed = false;
+
+/****************************************************************************************************/
+/*                                      MosOcaRTLogMgrBase                                          */
+/****************************************************************************************************/
+
+int32_t MosOcaRTLogMgrBase::GetGlobleIndex()
 {
-    MOS_OS_FUNCTION_ENTER;
-    MOS_UNUSED(osContext);
-
-    GpuContextNext* gpuContextNext = nullptr;
-
-    gpuContextNext = MOS_New( GpuContextSpecificNext, gpuNode, cmdBufMgr,  reusedContext );
-
-    return gpuContextNext;
+    return MosUtilities::MosAtomicIncrement(&m_globleIndex);
 }
-

@@ -20,33 +20,19 @@
 * OTHER DEALINGS IN THE SOFTWARE.
 */
 //!
-//! \file     encode_hevc_vdenc_packet_xe_lpm_plus.h
-//! \brief    Defines the interface to adapt to hevc vdenc xe_lpm_plus encode pipeline
+//! \file     media_ddi_decode_const_xe_m_plus.h
+//! \brief    Add some const string definition for media_libva_decoder
 //!
 
-#ifndef __CODECHAL_HEVC_VDENC_PACKET_XE_LPM_PLUS_H__
-#define __CODECHAL_HEVC_VDENC_PACKET_XE_LPM_PLUS_H__
+// The defined const string is used as the Key for supported decoding codec list. And
+// it is included by each decoding codec.
+// And it is also included in media_libva_decoder.c. The corresponding string is used
+// as the key to search and create one instance from the supported decoding list.
 
-#include "encode_hevc_vdenc_packet.h"
+#ifndef _MEDIA_LIBVA_DECODE_CONST_XE_M_PLUS_H_
+#define _MEDIA_LIBVA_DECODE_CONST_XE_M_PLUS_H_
 
-namespace encode
-{
-class HevcVdencPktXe_Lpm_Plus : public HevcVdencPkt
-{
-public:
-    HevcVdencPktXe_Lpm_Plus(MediaPipeline *pipeline, MediaTask *task, CodechalHwInterfaceNext *hwInterface) : HevcVdencPkt(pipeline, task, hwInterface)
-    {
-    }
+#define DECODE_ID_HEVC_REXT     "DECODE_ID_HEVC_REXT"
+#define DECODE_ID_AV1           "VIDEO_DEC_AV1"
 
-    virtual ~HevcVdencPktXe_Lpm_Plus(){};
-
-protected:
-    MOS_STATUS SendHwSliceEncodeCommand(const PCODEC_ENCODER_SLCDATA slcData, const uint32_t currSlcIdx, MOS_COMMAND_BUFFER &cmdBuffer) override;
-    MOS_STATUS AddAllCmds_HCP_PAK_INSERT_OBJECT_BRC(PMOS_COMMAND_BUFFER cmdBuffer) const;
-
-    MEDIA_CLASS_DEFINE_END(encode__HevcVdencPktXe_Lpm_Plus)
-};
-
-}  // namespace encode
-
-#endif
+#endif /*  _MEDIA_LIBVA_DECODE_CONST_XE_M_PLUS_H_ */
