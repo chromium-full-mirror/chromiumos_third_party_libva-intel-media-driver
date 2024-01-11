@@ -140,13 +140,26 @@ MOS_STATUS VpPipeline::ReportIFNCC(bool bStart)
     //INTER_FRAME_MEMORY_NINJA_START_COUNTER will be reported in Prepare function
     //INTER_FRAME_MEMORY_NINJA_END_COUNTER will be reported in UserFeatureReport() function which runs in Execute()
     VP_FUNC_CALL();
+    int32_t memninjaCounter = 0;
+    memninjaCounter         = *MosUtilities::m_mosMemAllocCounter + *MosUtilities::m_mosMemAllocCounterGfx - *MosUtilities::m_mosMemAllocFakeCounter;
+    if (MOS_IS_MEMORY_FOOT_PRINT_ENABLED())
+    {
+        if (bStart)
+        {
+            MT_LOG2(MT_MOS_MEMORY_NINJA_COUNTER, MT_NORMAL, MT_MEMORY_NINJA_IS_START, bStart, MT_MEMORY_NINJA_START_COUNTER, memninjaCounter);
+            VP_PUBLIC_NORMALMESSAGE("MT_MOS_MEMORY_NINJA_COUNTER, MT_MEMORY_NINJA_IS_START :%d, MT_MEMORY_NINJA_START_COUNTER: %d", bStart, memninjaCounter);
+        }
+        else
+        {
+            MT_LOG2(MT_MOS_MEMORY_NINJA_COUNTER, MT_NORMAL, MT_MEMORY_NINJA_IS_START, bStart, MT_MEMORY_NINJA_END_COUNTER, memninjaCounter);
+            VP_PUBLIC_NORMALMESSAGE("MT_MOS_MEMORY_NINJA_COUNTER, MT_MEMORY_NINJA_IS_START :%d, MT_MEMORY_NINJA_END_COUNTER: %d", bStart, memninjaCounter);
+        }
+    }
     if (m_userFeatureControl->EnableIFNCC() &&
         MosUtilities::m_mosMemAllocCounter &&
         MosUtilities::m_mosMemAllocCounterGfx &&
         MosUtilities::m_mosMemAllocFakeCounter)
     {
-        int32_t memninjaCounter = 0;
-        memninjaCounter         = *MosUtilities::m_mosMemAllocCounter + *MosUtilities::m_mosMemAllocCounterGfx - *MosUtilities::m_mosMemAllocFakeCounter;
         ReportUserSettingForDebug(
             m_userSettingPtr,
             bStart ? __MEDIA_USER_FEATURE_VALUE_INTER_FRAME_MEMORY_NINJA_START_COUNTER : __MEDIA_USER_FEATURE_VALUE_INTER_FRAME_MEMORY_NINJA_END_COUNTER,
@@ -717,9 +730,17 @@ MOS_STATUS VpPipeline::CreateSinglePipeContext()
     VP_FUNC_CALL();
     VpSinglePipeContext *singlePipeCtx = MOS_New(VpSinglePipeContext);
     VP_PUBLIC_CHK_NULL_RETURN(singlePipeCtx);
-    VP_PUBLIC_CHK_STATUS_RETURN(singlePipeCtx->Init(m_osInterface, m_allocator, m_reporting, m_vpMhwInterface.m_vpPlatformInterface, m_pPacketPipeFactory, m_userFeatureControl, m_mediaCopyWrapper));
-    m_vpPipeContexts.push_back(singlePipeCtx);
-    return MOS_STATUS_SUCCESS;
+    MOS_STATUS status = singlePipeCtx->Init(m_osInterface, m_allocator, m_reporting, m_vpMhwInterface.m_vpPlatformInterface, m_pPacketPipeFactory, m_userFeatureControl, m_mediaCopyWrapper);
+    if (MOS_FAILED(status))
+    {
+        MOS_Delete(singlePipeCtx);
+        VP_PUBLIC_CHK_STATUS_RETURN(status);
+    }
+    else
+    {
+        m_vpPipeContexts.push_back(singlePipeCtx);
+    }
+    return status;
 }
 
 MOS_STATUS VpPipeline::CreateFeatureManager(VpResourceManager *vpResourceManager)
@@ -1035,10 +1056,9 @@ MOS_STATUS VpPipeline::PrepareVpPipelineParams(PVP_PIPELINE_PARAMS params)
 MOS_STATUS VpPipeline::PrepareVpPipelineScalabilityParams(uint32_t srcWidth, uint32_t srcHeight, uint32_t dstWidth, uint32_t dstHeight)
 {
     VP_FUNC_CALL();
-
     VP_PUBLIC_NORMALMESSAGE("Reset m_numVebox %d -> %d", m_numVebox, m_numVeboxOriginal);
     m_numVebox = m_numVeboxOriginal;
-    MT_LOG1(MT_VP_HAL_VEBOXNUM_CHECK, MT_NORMAL, MT_VP_HAL_VEBOX_NUMBER, m_numVebox)
+    MT_LOG1(MT_VP_HAL_VEBOXNUM_RESET, MT_NORMAL, MT_VP_HAL_VEBOX_NUMBER, m_numVebox)
 
     // Disable vesfc scalability when reg key "Enable Vebox Scalability" was set to zero
     if (m_forceMultiplePipe == (MOS_SCALABILITY_ENABLE_MODE_USER_FORCE | MOS_SCALABILITY_ENABLE_MODE_FALSE))

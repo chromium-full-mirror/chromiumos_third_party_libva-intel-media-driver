@@ -157,7 +157,12 @@ int32_t Linux_GetCommandBuffer(
     }
 
     // Allocate the command buffer from GEM
-    cmd_bo = mos_bo_alloc(osContext->bufmgr,"MOS CmdBuf",size,4096, MOS_MEMPOOL_SYSTEMMEMORY);     // Align to page boundary
+    struct mos_drm_bo_alloc alloc;
+    alloc.name = "MOS CmdBuf";
+    alloc.size = size;
+    alloc.alignment = 4096;
+    alloc.ext.mem_type = MOS_MEMPOOL_SYSTEMMEMORY;
+    cmd_bo = mos_bo_alloc(osContext->bufmgr, &alloc);     // Align to page boundary
     MOS_OS_CHK_NULL_RETURN_VALUE(cmd_bo, false);
 
     //MOS_OS_NORMALMESSAGE("alloc CMB, bo is 0x%x.", cmd_bo);
@@ -442,7 +447,12 @@ MOS_STATUS Linux_InitGPUStatus(
     MOS_OS_CHK_NULL_RETURN(osContext->pGPUStatusBuffer);
 
     // Allocate the command buffer from GEM
-    bo = mos_bo_alloc(osContext->bufmgr,"GPU Status Buffer", sizeof(MOS_GPU_STATUS_DATA)  * MOS_GPU_CONTEXT_MAX, 4096, MOS_MEMPOOL_SYSTEMMEMORY);     // Align to page boundary
+    struct mos_drm_bo_alloc alloc;
+    alloc.name = "GPU Status Buffer";
+    alloc.size = sizeof(MOS_GPU_STATUS_DATA)  * MOS_GPU_CONTEXT_MAX;
+    alloc.alignment = 4096;
+    alloc.ext.mem_type = MOS_MEMPOOL_SYSTEMMEMORY;
+    bo = mos_bo_alloc(osContext->bufmgr, &alloc);     // Align to page boundary
     if (bo == nullptr)
     {
         MOS_OS_ASSERTMESSAGE("Allocation of GPU Status Buffer failed.");
@@ -811,7 +821,7 @@ MOS_STATUS Mos_Specific_SetGpuContextHandle(
         MOS_OS_ASSERTMESSAGE("gpuContext %x >=   MOS_GPU_CONTEXT_MAX", gpuContext);
         return MOS_STATUS_INVALID_PARAMETER;
     }
-    osInterface->m_GpuContextHandleMap[gpuContext] == gpuContextHandle;
+    osInterface->m_GpuContextHandleMap[gpuContext] = gpuContextHandle;
     return MOS_STATUS_SUCCESS;
 }
 
@@ -1500,15 +1510,13 @@ MOS_STATUS Mos_Specific_MediaCopyResource2D(
     PMOS_RESOURCE         outputOsResource,
     uint32_t              copyWidth,
     uint32_t              copyHeight,
-    uint32_t              copyInputOffset,
-    uint32_t              copyOutputOffset,
     uint32_t              bpp,
     bool                  outputCompressed)
 {
     MOS_OS_CHK_NULL_RETURN(osInterface);
 
     return MosInterface::MediaCopyResource2D(osInterface->osStreamState, inputOsResource, outputOsResource,
-        copyWidth, copyHeight, copyInputOffset, copyOutputOffset, bpp, outputCompressed);
+        copyWidth, copyHeight, bpp, outputCompressed);
 }
 
 //!

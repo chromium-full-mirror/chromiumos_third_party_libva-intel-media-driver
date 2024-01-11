@@ -28,6 +28,7 @@
 #include "vp_platform_interface.h"
 #include <vector>
 #include <map>
+#include <set>
 
 class RenderCmdPacket;
 
@@ -62,7 +63,6 @@ typedef struct _KERNEL_SURFACE_STATE_PARAM
         MOS_TILE_TYPE                  tileType;
         bool                           bufferResource;
         bool                           bindedKernel;        // true if bind index is hardcoded by bindIndex.
-        uint32_t                       bindIndex;
         bool                           updatedRenderSurfaces; // true if renderSurfaceParams be used.
         RENDERHAL_SURFACE_STATE_PARAMS renderSurfaceParams;  // default can be skip. for future usages, if surface configed by kernel, use it directlly
     } surfaceOverwriteParams;
@@ -70,6 +70,7 @@ typedef struct _KERNEL_SURFACE_STATE_PARAM
     bool                                isOutput;        // true for render target
     PRENDERHAL_SURFACE_STATE_ENTRY      *surfaceEntries;
     uint32_t                            *sizeOfSurfaceEntries;
+    uint32_t                             iCapcityOfSurfaceEntry = 0;
 } KERNEL_SURFACE_STATE_PARAM;
 
 using KERNEL_CONFIGS = std::map<VpKernelID, void *>; // Only for legacy/non-cm kernels
@@ -78,7 +79,7 @@ using KERNEL_SAMPLER_STATE_GROUP = std::map<SamplerIndex, MHW_SAMPLER_STATE_PARA
 using KERNEL_SAMPLER_STATES = std::vector<MHW_SAMPLER_STATE_PARAM>;
 using KERNEL_SAMPLER_INDEX = std::vector<SamplerIndex>;
 using KERNEL_SURFACE_CONFIG = std::map<SurfaceType, KERNEL_SURFACE_STATE_PARAM>;
-using KERNEL_SURFACE_BINDING_INDEX = std::map<SurfaceType, uint32_t>;
+using KERNEL_SURFACE_BINDING_INDEX = std::map<SurfaceType, std::set<uint32_t>>;
 
 typedef struct _KERNEL_PARAMS
 {
@@ -441,29 +442,29 @@ public:
         auto it = m_surfaceBindingIndex.find(surface);
         if (it != m_surfaceBindingIndex.end())
         {
-            it->second = index;
+            it->second.insert(index);
         }
         else
         {
-            m_surfaceBindingIndex.insert(std::make_pair(surface, index));
+            std::set<uint32_t> bindingMap;
+            bindingMap.insert(index);
+            m_surfaceBindingIndex.insert(std::make_pair(surface, bindingMap));
         }
 
         return MOS_STATUS_SUCCESS;
     }
 
-    uint32_t GetSurfaceBindingIndex(SurfaceType surface)
+    std::set<uint32_t>& GetSurfaceBindingIndex(SurfaceType surface)
     {
         auto it = m_surfaceBindingIndex.find(surface);
 
-        if (it != m_surfaceBindingIndex.end())
-        {
-            return it->second;
-        }
-        else
+        if (it == m_surfaceBindingIndex.end())
         {
             VP_RENDER_ASSERTMESSAGE("No surface index created for current surface");
-            return 0;
+            std::set<uint32_t> bindingMap;
+            it = m_surfaceBindingIndex.insert(std::make_pair(surface, bindingMap)).first;
         }
+        return it->second;
     }
 
     MOS_STATUS InitKernel(void* binary, uint32_t size, KERNEL_CONFIGS& kernelConfigs,

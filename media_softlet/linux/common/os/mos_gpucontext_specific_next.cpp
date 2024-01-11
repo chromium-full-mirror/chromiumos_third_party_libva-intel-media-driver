@@ -1179,7 +1179,12 @@ MOS_LINUX_BO* GpuContextSpecificNext::GetNopCommandBuffer(
     }
 
     auto perStreamParameters = (PMOS_CONTEXT)streamState->perStreamParameters;
-    bo = mos_bo_alloc(perStreamParameters->bufmgr, "NOP_CMD_BO", 4096, 4096, MOS_MEMPOOL_VIDEOMEMORY);
+    struct mos_drm_bo_alloc alloc;
+    alloc.name = "NOP_CMD_BO";
+    alloc.size = 4096;
+    alloc.alignment = 4096;
+    alloc.ext.mem_type = MOS_MEMPOOL_VIDEOMEMORY;
+    bo = mos_bo_alloc(perStreamParameters->bufmgr, &alloc);
     if(bo == nullptr)
     {
         return nullptr;
@@ -1493,14 +1498,6 @@ MOS_STATUS GpuContextSpecificNext::SubmitCommandBuffer(
             else if (gpuNode == MOS_GPU_NODE_VIDEO2)
             {
                 execFlag = I915_EXEC_BSD | I915_EXEC_BSD_RING2;
-            }
-            else if ((gpuNode == MOS_GPU_NODE_BLT))
-            {
-                execFlag = I915_EXEC_BLT;
-            }
-            else
-            {
-                MOS_OS_ASSERTMESSAGE("Invalid gpuNode.");
             }
         }
         else
