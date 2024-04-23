@@ -2101,6 +2101,7 @@ MOS_STATUS MosInterface::UpdateResourceUsageType(
     MOS_OS_CHK_NULL_RETURN(pOsResource->pGmmResInfo);
     //---------------------------------
 
+    pOsResource->mocsMosResUsageType = resUsageType;
     pOsResource->pGmmResInfo->OverrideCachePolicyUsage(GetGmmResourceUsageType(resUsageType));
 
     return eStatus;
@@ -2483,8 +2484,10 @@ MOS_STATUS MosInterface::DoubleBufferCopyResource(
         }
     };
 
-    if (lbdMemDecomp() != MOS_STATUS_SUCCESS && !mosDecompression)
+    // If mmd device not registered, use media vebopx copy.
+    if (lbdMemDecomp() != MOS_STATUS_SUCCESS && mosDecompression && !mosDecompression->GetMediaMemDecompState())
     {
+        MOS_OS_CRITICALMESSAGE("MMD device not registered. Use media copy instead.");
         status = MosInterface::UnifiedMediaCopyResource(streamState, inputResource, outputResource, MCPY_METHOD_BALANCE);
     }
 
@@ -2555,8 +2558,10 @@ MOS_STATUS MosInterface::MediaCopyResource2D(
         }
     };
 
-    if (lbdMemDecomp() != MOS_STATUS_SUCCESS && !mosDecompression)
+    // If mmd device not registered, use media vebopx copy.
+    if (lbdMemDecomp() != MOS_STATUS_SUCCESS && mosDecompression && !mosDecompression->GetMediaMemDecompState())
     {
+        MOS_OS_CRITICALMESSAGE("MMD device not registered. Use media copy instead.");
         status = MosInterface::UnifiedMediaCopyResource(streamState, inputResource, outputResource, MCPY_METHOD_BALANCE);
     }
 
@@ -2599,9 +2604,10 @@ MOS_STATUS MosInterface::MonoSurfaceCopy(
         }
     };
 
-    // Use media copy in case of mem decompression failed
-    if (lbdMemDecomp() != MOS_STATUS_SUCCESS && !mosDecompression)
+    // If mmd device not registered, use media vebopx copy.
+    if (lbdMemDecomp() != MOS_STATUS_SUCCESS && mosDecompression && !mosDecompression->GetMediaMemDecompState())
     {
+        MOS_OS_CRITICALMESSAGE("MMD device not registered. Use media copy instead.");
         MOS_SURFACE inputResInfo, outputResInfo;
         MOS_ZeroMemory(&inputResInfo, sizeof(MOS_SURFACE));
         MOS_ZeroMemory(&outputResInfo, sizeof(MOS_SURFACE));
@@ -2635,10 +2641,10 @@ MOS_STATUS MosInterface::MonoSurfaceCopy(
         outputResource->pGmmResInfo->OverridePitch(copyWidth);
         outputResource->pGmmResInfo->OverrideBaseHeight(copyHeight);
 
-        uint32_t inOffset           = inputResource->dwOffset;
-        uint32_t outOffset          = outputResource->dwOffset;
-        inputResource->dwOffset  = copyInputOffset;
-        outputResource->dwOffset = copyOutputOffset;
+        uint32_t inOffset           = inputResource->dwOffsetForMono;
+        uint32_t outOffset          = outputResource->dwOffsetForMono;
+        inputResource->dwOffsetForMono  = copyInputOffset;
+        outputResource->dwOffsetForMono = copyOutputOffset;
 
         status = MosInterface::UnifiedMediaCopyResource(streamState, inputResource, outputResource, MCPY_METHOD_BALANCE);
 
@@ -2651,8 +2657,8 @@ MOS_STATUS MosInterface::MonoSurfaceCopy(
         outputResource->pGmmResInfo->OverrideBaseWidth(bkOut.pitch);
         outputResource->pGmmResInfo->OverrideBaseHeight(bkOut.height);
 
-        inputResource->dwOffset  = inOffset;
-        outputResource->dwOffset = outOffset;
+        inputResource->dwOffsetForMono  = inOffset;
+        outputResource->dwOffsetForMono = outOffset;
     }
 
     return status;
@@ -3982,4 +3988,10 @@ MOS_STATUS MosInterface::GetMultiEngineStatus(
     bool          &isMultiEngine)
 {
     return MOS_STATUS_SUCCESS;
+}
+
+bool MosInterface::m_bTrinity = false;
+void MosInterface::SetIsTrinityEnabled(bool bTrinity)
+{
+    return;
 }

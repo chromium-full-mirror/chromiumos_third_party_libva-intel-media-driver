@@ -108,7 +108,7 @@ MOS_STATUS Av1BasicFeature::Update(void *params)
     ENCODE_FUNC_CALL();
     ENCODE_CHK_NULL_RETURN(params);
 
-    EncodeBasicFeature::Update(params);
+    ENCODE_CHK_STATUS_RETURN(EncodeBasicFeature::Update(params));
 
     EncoderParamsAV1 *encodeParams = (EncoderParamsAV1 *)params;
 
@@ -351,6 +351,7 @@ MOS_STATUS Av1BasicFeature::UpdateFormat(void *params)
     switch(m_rawSurface.Format)
     {
     case Format_P010:
+    case Format_R10G10B10A2:
         m_is10Bit  = true;
         m_bitDepth = 10;
         break;
@@ -727,7 +728,7 @@ MHW_SETPAR_DECL_SRC(VDENC_REF_SURFACE_STATE, Av1BasicFeature)
         params.uOffset = m_rawSurfaceToPak->dwHeight;
         params.vOffset = m_rawSurfaceToPak->dwHeight << 1;
     }
-    else if (m_reconSurface.Format == Format_Y216 || m_reconSurface.Format == Format_YUY2 || m_reconSurface.Format == Format_YUYV)
+    else if (m_reconSurface.Format == Format_Y216 || m_reconSurface.Format == Format_Y210 || m_reconSurface.Format == Format_YUY2)
     {
         params.uOffset = m_rawSurfaceToPak->dwHeight;
         params.vOffset = m_rawSurfaceToPak->dwHeight;

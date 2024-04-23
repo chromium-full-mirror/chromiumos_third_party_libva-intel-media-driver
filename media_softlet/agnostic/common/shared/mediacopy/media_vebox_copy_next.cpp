@@ -148,20 +148,6 @@ MOS_STATUS VeboxCopyStateNext::CopyMainSurface(PMOS_RESOURCE src, PMOS_RESOURCE 
     VEBOX_COPY_CHK_STATUS_RETURN(m_osInterface->pfnSetGpuContext(m_osInterface, VeboxGpuContext));
 
     m_osInterface->pfnSetPerfTag(m_osInterface, VEBOX_COPY);
-    // Sync on Vebox Input Resource, Ensure the input is ready to be read
-    // Currently, MOS RegisterResourcere cannot sync the 3d resource.
-    // Temporaly, call sync resource to do the sync explicitly.
-    // Sync need be done after switching context.
-    m_osInterface->pfnSyncOnResource(
-        m_osInterface,
-        src,
-        VeboxGpuContext,
-        false);
-    m_osInterface->pfnSyncOnResource(
-        m_osInterface,
-        dst,
-        VeboxGpuContext,
-        false);
 
     // Reset allocation list and house keeping
     m_osInterface->pfnResetOsStates(m_osInterface);
@@ -306,7 +292,7 @@ MOS_STATUS VeboxCopyStateNext::GetResourceInfo(PMOS_SURFACE surface)
     surface->bGMMTileEnabled                                    = resDetails.bGMMTileEnabled;
     surface->bCompressible                                      = resDetails.bCompressible;
     surface->bIsCompressed                                      = resDetails.bIsCompressed;
-    surface->dwOffset                                           = resDetails.RenderOffset.YUV.Y.BaseOffset + surface->OsResource.dwOffset;
+    surface->dwOffset                                           = resDetails.RenderOffset.YUV.Y.BaseOffset + surface->OsResource.dwOffsetForMono;
     surface->YPlaneOffset.iSurfaceOffset                        = resDetails.RenderOffset.YUV.Y.BaseOffset;
     surface->YPlaneOffset.iXOffset                              = resDetails.RenderOffset.YUV.Y.XOffset;
     surface->YPlaneOffset.iYOffset                              = resDetails.RenderOffset.YUV.Y.YOffset;

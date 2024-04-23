@@ -247,6 +247,15 @@ MOS_STATUS MosUserSetting::InitMosCommonUserSetting(MediaUserSettingSharedPtr us
 
     DeclareUserSettingKey(
         userSettingPtr,
+        __MEDIA_USER_FEATURE_VALUE_PERF_PROFILER_ENABLE_MER_HEADER,
+        MediaUserSetting::Group::Device,
+        int32_t(0),
+        true,
+        true,
+        USER_SETTING_CONFIG_PERF_PATH);  //"Perf Profiler Merge by Header Support."
+
+    DeclareUserSettingKey(
+        userSettingPtr,
         __MEDIA_USER_FEATURE_VALUE_PERF_PROFILER_OUTPUT_FILE_NAME,
         MediaUserSetting::Group::Device,
         "Perf_DATA_00_00.bin",
@@ -989,13 +998,6 @@ MOS_STATUS MosUserSetting::InitUserSettingForDebug(MediaUserSettingSharedPtr use
 
     DeclareUserSettingKeyForDebug(
         userSettingPtr,
-        __MEDIA_USER_FEATURE_VALUE_MEDIASOLO_TILE_Y_2_TILE_4_ADAPTER,
-        MediaUserSetting::Group::Device,
-        false,
-        true);
-
-    DeclareUserSettingKeyForDebug(
-        userSettingPtr,
         __MEDIA_USER_FEATURE_VALUE_MEDIASOLO_ENABLE_MEM_TRACE,
         MediaUserSetting::Group::Device,
         false,
@@ -1444,6 +1446,13 @@ MOS_STATUS MosUserSetting::InitUserSettingForDebug(MediaUserSettingSharedPtr use
         MediaUserSetting::Group::Device,
         0,      // 0 is ignore. 1 blt, 2 render, 3 vebox, 4 bypass copy engine;
         true);  //"media copy force copy model."
+
+    DeclareUserSettingKeyForDebug(
+        userSettingPtr,
+        __MEDIA_USER_FEATURE_ENABLE_VECOPY_SMALL_RESOLUTION,
+        MediaUserSetting::Group::Device,
+        0,
+        true);
 
     DeclareUserSettingKeyForDebug(
         userSettingPtr,

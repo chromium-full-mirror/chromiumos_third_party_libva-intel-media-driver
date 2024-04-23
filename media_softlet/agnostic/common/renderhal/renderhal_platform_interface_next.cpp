@@ -237,18 +237,9 @@ MOS_STATUS XRenderHal_Platform_Interface_Next::EnablePreemption(
     MEDIA_FEATURE_TABLE* m_skuTable = nullptr;
     MHW_RENDERHAL_CHK_NULL_RETURN(pRenderHal);
     MHW_RENDERHAL_CHK_NULL_RETURN(m_miItf);
+    MHW_RENDERHAL_CHK_NULL_RETURN(m_renderItf);
 
-    m_skuTable = pRenderHal->pOsInterface->pfnGetSkuTable(pRenderHal->pOsInterface);
-    MHW_MI_CHK_NULL(m_skuTable);
-
-    if (MEDIA_IS_SKU(m_skuTable, FtrPerCtxtPreemptionGranularityControl))
-    {
-        auto& par = m_miItf->MHW_GETPAR_F(MI_LOAD_REGISTER_IMM)();
-        par = {};
-        par.dwRegister = 0;
-        par.dwData     = 0;
-        MHW_CHK_STATUS_RETURN(m_miItf->MHW_ADDCMD_F(MI_LOAD_REGISTER_IMM)(pCmdBuffer));
-    }
+    MHW_RENDERHAL_CHK_STATUS_RETURN(m_renderItf->EnablePreemption(pCmdBuffer, m_miItf));
 
     return eStatus;
 }
@@ -1499,6 +1490,17 @@ MHW_SETPAR_DECL_SRC(COMPUTE_WALKER, XRenderHal_Platform_Interface_Next)
     {
         params.GroupDepth = 1;
     }
+
+    return MOS_STATUS_SUCCESS;
+}
+
+MHW_SETPAR_DECL_SRC(_3DSTATE_BINDING_TABLE_POOL_ALLOC, XRenderHal_Platform_Interface_Next)
+{
+    MHW_STATE_BASE_ADDR_PARAMS *pStateBaseParams = nullptr;
+    MHW_RENDERHAL_CHK_NULL_RETURN(m_renderHal);
+    pStateBaseParams = &m_renderHal->StateBaseAddressParams;
+    MHW_RENDERHAL_CHK_NULL_RETURN(pStateBaseParams);
+    params.mocs4SurfaceState = pStateBaseParams->mocs4SurfaceState;
 
     return MOS_STATUS_SUCCESS;
 }

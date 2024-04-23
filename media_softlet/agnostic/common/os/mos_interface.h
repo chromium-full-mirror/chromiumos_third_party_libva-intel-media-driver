@@ -1687,8 +1687,8 @@ public:
     //!           [in] Input Resource object
     //! \param    outputResource
     //!           [out] output Resource object
-    //! \param    [in] copyWidth
-    //!           The 2D surface Width
+    //! \param    [in] copyPitch
+    //!           The 2D surface pitch
     //! \param    [in] copyHeight
     //!           The 2D surface height
     //! \param    [in] copyInputOffset
@@ -1704,7 +1704,7 @@ public:
         MOS_STREAM_HANDLE   streamState,
         MOS_RESOURCE_HANDLE inputResource,
         MOS_RESOURCE_HANDLE outputResource,
-        uint32_t            copyWidth,
+        uint32_t            copyPitch,
         uint32_t            copyHeight,
         uint32_t            bpp,
         bool                outputCompressed);
@@ -1736,7 +1736,7 @@ public:
         MOS_STREAM_HANDLE   streamState,
         MOS_RESOURCE_HANDLE inputResource,
         MOS_RESOURCE_HANDLE outputResource,
-        uint32_t            copyWidth,
+        uint32_t            copyPitch,
         uint32_t            copyHeight,
         uint32_t            copyInputOffset,
         uint32_t            copyOutputOffset,
@@ -2362,6 +2362,8 @@ public:
 
     static uint64_t GetResourceHandle(MOS_STREAM_HANDLE streamState, PMOS_RESOURCE osResource);
 
+    static void SetIsTrinityEnabled(bool bTrinity);
+
 private:
     //!
     //! \brief    Init per stream parameters
@@ -2461,6 +2463,7 @@ private:
     static uint32_t m_mosOsApiFailSimulateHint;
     static uint32_t m_mosOsApiFailSimulateCounter;
 #endif
+    static bool m_bTrinity;
 MEDIA_CLASS_DEFINE_END(MosInterface)
 };
 

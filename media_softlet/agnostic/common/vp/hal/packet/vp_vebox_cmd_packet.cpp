@@ -84,7 +84,7 @@ void VpVeboxCmdPacket::UpdateCpPrepareResources()
     VP_FUNC_CALL();
 
     VpVeboxRenderData *pRenderData = GetLastExecRenderData();
-    VP_RENDER_ASSERT(pRenderData);
+    VP_PUBLIC_CHK_NULL_NO_STATUS_RETURN(pRenderData);
     // For 3DLut usage, it update in CpPrepareResources() for kernel usage, should
     // reupdate here. For other feature usage, it already update in vp_pipeline
     if (pRenderData->HDR3DLUT.is3DLutTableUpdatedByKernel == true)
@@ -242,6 +242,12 @@ MOS_STATUS VpVeboxCmdPacket::SetupVeboxState(mhw::vebox::VEBOX_STATE_PAR& veboxS
     VP_RENDER_CHK_STATUS_RETURN(SetupDNTableForHVS(veboxStateCmdParams));
 
     veboxStateCmdParams.bCmBuffer = false;
+
+    MHW_VEBOX_IECP_PARAMS& veboxIecpParams = pRenderData->GetIECPParams();
+    // CCM for CSC needs HDR state
+    pVeboxMode->Hdr1DLutEnable |= veboxIecpParams.bCcmCscEnable;
+    // Only fp16 output needs CCM for CSC
+    pVeboxMode->Fp16ModeEnable |= veboxIecpParams.bCcmCscEnable;
 
     return MOS_STATUS_SUCCESS;
 }
@@ -530,7 +536,7 @@ MOS_STATUS VpVeboxCmdPacket::SetVeboxBeCSCParams(PVEBOX_CSC_PARAMS cscParams)
     VP_RENDER_CHK_NULL_RETURN(cscParams);
 
     VpVeboxRenderData* pRenderData = GetLastExecRenderData();
-    VP_RENDER_ASSERT(pRenderData);
+    VP_RENDER_CHK_NULL_RETURN(pRenderData);
 
     pRenderData->IECP.BeCSC.bBeCSCEnabled = cscParams->bCSCEnabled;
 
@@ -558,6 +564,12 @@ MOS_STATUS VpVeboxCmdPacket::SetVeboxBeCSCParams(PVEBOX_CSC_PARAMS cscParams)
         veboxIecpParams.pfCscCoeff     = m_fCscCoeff;
         veboxIecpParams.pfCscInOffset  = m_fCscInOffset;
         veboxIecpParams.pfCscOutOffset = m_fCscOutOffset;
+        if ((cscParams->outputFormat == Format_A16B16G16R16F) || (cscParams->outputFormat == Format_A16R16G16B16F))
+        {
+            // Use CCM to do CSC for FP16 VEBOX output
+            veboxIecpParams.bCSCEnable    = false;
+            veboxIecpParams.bCcmCscEnable = true;
+        }
     }
 
     VP_RENDER_CHK_STATUS_RETURN(SetVeboxOutputAlphaParams(cscParams));
@@ -573,7 +585,7 @@ MOS_STATUS VpVeboxCmdPacket::SetVeboxOutputAlphaParams(PVEBOX_CSC_PARAMS cscPara
     VP_RENDER_CHK_NULL_RETURN(cscParams);
 
     VpVeboxRenderData* pRenderData = GetLastExecRenderData();
-    VP_RENDER_ASSERT(pRenderData);
+    VP_RENDER_CHK_NULL_RETURN(pRenderData);
 
     MHW_VEBOX_IECP_PARAMS& veboxIecpParams = pRenderData->GetIECPParams();
 
@@ -654,7 +666,7 @@ MOS_STATUS VpVeboxCmdPacket::SetVeboxChromasitingParams(PVEBOX_CSC_PARAMS cscPar
     VP_RENDER_CHK_NULL_RETURN(cscParams);
 
     VpVeboxRenderData* pRenderData = GetLastExecRenderData();
-    VP_RENDER_ASSERT(pRenderData);
+    VP_RENDER_CHK_NULL_RETURN(pRenderData);
 
     MHW_VEBOX_CHROMA_SAMPLING& veboxChromaSamplingParams = pRenderData->GetChromaSubSamplingParams();
 
@@ -1055,7 +1067,7 @@ MOS_STATUS VpVeboxCmdPacket::SetHdrParams(PVEBOX_HDR_PARAMS hdrParams)
     pRenderData->HDR3DLUT.uiMaxDisplayLum      = hdrParams->uiMaxDisplayLum;
     pRenderData->HDR3DLUT.uiMaxContentLevelLum = hdrParams->uiMaxContentLevelLum;
     pRenderData->HDR3DLUT.hdrMode              = hdrParams->hdrMode;
-    pRenderData->HDR3DLUT.uiLutSize            = 65;
+    pRenderData->HDR3DLUT.uiLutSize            = hdrParams->lutSize;
 
     VP_RENDER_CHK_STATUS_RETURN(ValidateHDR3DLutParameters(pRenderData->HDR3DLUT.is3DLutTableFilled));
 
@@ -1083,7 +1095,14 @@ MOS_STATUS VpVeboxCmdPacket::SetHdrParams(PVEBOX_HDR_PARAMS hdrParams)
     //Report
     if (m_hwInterface->m_reporting)
     {
-        m_hwInterface->m_reporting->GetFeatures().hdrMode = (pRenderData->HDR3DLUT.hdrMode == VPHAL_HDR_MODE_H2H) ? VPHAL_HDR_MODE_H2H_VEBOX_3DLUT : VPHAL_HDR_MODE_TONE_MAPPING_VEBOX_3DLUT;
+        if (pRenderData->HDR3DLUT.uiLutSize == LUT33_SEG_SIZE)
+        {
+            m_hwInterface->m_reporting->GetFeatures().hdrMode = (pRenderData->HDR3DLUT.hdrMode == VPHAL_HDR_MODE_H2H) ? VPHAL_HDR_MODE_H2H_VEBOX_3DLUT33 : VPHAL_HDR_MODE_TONE_MAPPING_VEBOX_3DLUT33;
+        }
+        else
+        {
+            m_hwInterface->m_reporting->GetFeatures().hdrMode = (pRenderData->HDR3DLUT.hdrMode == VPHAL_HDR_MODE_H2H) ? VPHAL_HDR_MODE_H2H_VEBOX_3DLUT : VPHAL_HDR_MODE_TONE_MAPPING_VEBOX_3DLUT;
+        }
     }
 
     return MOS_STATUS_SUCCESS;
@@ -1588,6 +1607,7 @@ MOS_STATUS VpVeboxCmdPacket::PrepareVeboxCmd(
     VP_RENDER_CHK_NULL_RETURN(pOsInterface);
     VP_RENDER_CHK_NULL_RETURN(m_currentSurface);
     VP_RENDER_CHK_NULL_RETURN(m_currentSurface->osSurface);
+    VP_RENDER_CHK_NULL_RETURN(pRenderData);
 
     // Set initial state
     iRemaining = CmdBuffer->iRemaining;
@@ -3045,6 +3065,8 @@ MOS_STATUS VpVeboxCmdPacket::VeboxSetPerfTagNv12()
                     case Format_Y8:
                     case Format_Y16S:
                     case Format_Y16U:
+                    case Format_A16B16G16R16F:
+                    case Format_A16R16G16B16F:
                         *pPerfTag = VPHAL_NONE;
                         break;
                     default:
@@ -3092,6 +3114,8 @@ MOS_STATUS VpVeboxCmdPacket::VeboxSetPerfTagNv12()
                     case Format_Y8:
                     case Format_Y16S:
                     case Format_Y16U:
+                    case Format_A16B16G16R16F:
+                    case Format_A16R16G16B16F:
                         *pPerfTag = VPHAL_NONE;
                         break;
                     default:
@@ -3184,6 +3208,8 @@ MOS_STATUS VpVeboxCmdPacket::VeboxSetPerfTagPaFormat()
                     case Format_Y8:
                     case Format_Y16S:
                     case Format_Y16U:
+                    case Format_A16B16G16R16F:
+                    case Format_A16R16G16B16F:
                         *pPerfTag = VPHAL_NONE;
                         break;
                     default:
@@ -3231,6 +3257,8 @@ MOS_STATUS VpVeboxCmdPacket::VeboxSetPerfTagPaFormat()
                     case Format_Y8:
                     case Format_Y16S:
                     case Format_Y16U:
+                    case Format_A16B16G16R16F:
+                    case Format_A16R16G16B16F:
                         *pPerfTag = VPHAL_NONE;
                         break;
                     default:

@@ -48,6 +48,7 @@
 #include "mos_os_virtualengine_specific.h"
 
 #include "mos_oca_interface.h"
+#include "mos_cache_manager.h"
 
 #define MOS_NAL_UNIT_LENGTH                 4
 #define MOS_NAL_UNIT_STARTCODE_LENGTH       3
@@ -1003,7 +1004,7 @@ typedef struct _MOS_INTERFACE
         PMOS_INTERFACE        pOsInterface,
         PMOS_RESOURCE         pInputOsResource,
         PMOS_RESOURCE         pOutputOsResource,
-        uint32_t              copyWidth,
+        uint32_t              copyPitch,
         uint32_t              copyHeight,
         uint32_t              bpp,
         bool                  bOutputCompressed);
@@ -1012,7 +1013,7 @@ typedef struct _MOS_INTERFACE
         PMOS_INTERFACE pOsInterface,
         PMOS_RESOURCE  pInputOsResource,
         PMOS_RESOURCE  pOutputOsResource,
-        uint32_t       copyWidth,
+        uint32_t       copyPitch,
         uint32_t       copyHeight,
         uint32_t       copyInputOffset,
         uint32_t       copyOutputOffset,
@@ -2021,6 +2022,10 @@ typedef struct _MOS_INTERFACE
     MediaUserSettingSharedPtr (*pfnGetUserSettingInstance)(
         PMOS_INTERFACE              pOsInterface);
 
+    bool (*pfnInsertCacheSetting)(CACHE_COMPONENTS id, std::map<uint64_t, MOS_CACHE_ELEMENT> *cacheTablesPtr);
+
+    bool (*pfnGetCacheSetting)(MOS_COMPONENT id, uint32_t feature, bool bOut, ENGINE_TYPE engineType, MOS_CACHE_ELEMENT &element, bool isHeapSurf);
+
     // Virtual Engine related
     int32_t                         bSupportVirtualEngine;                        //!< Enable virtual engine flag
     int32_t                         bUseHwSemaForResSyncInVE;                     //!< Flag to indicate if UMD need to send HW sema cmd under this OS when there is a resource sync need with Virtual Engine interface 
@@ -2482,6 +2487,10 @@ void Mos_GetRtLogResourceInfo(
 void Mos_ResetMosResource(
     PMOS_RESOURCE           resource);
 
+
+bool Mos_InsertCacheSetting(CACHE_COMPONENTS id, std::map<uint64_t, MOS_CACHE_ELEMENT> *cacheTablesPtr);
+
+bool Mos_GetCacheSetting(MOS_COMPONENT id, uint32_t feature, bool bOut, ENGINE_TYPE engineType, MOS_CACHE_ELEMENT &element, bool isHeapSurf);
 
 #if (_DEBUG || _RELEASE_INTERNAL)
 //!

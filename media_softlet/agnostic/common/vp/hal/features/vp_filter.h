@@ -303,6 +303,7 @@ struct _VEBOX_HDR_PARAMS
     VPHAL_CSPACE                    dstColorSpace;
     MOS_FORMAT                      dstFormat;
     HDR_STAGE                       stage;
+    uint32_t                        lutSize;
 };
 
 using SFC_SCALING_PARAMS    = _SFC_SCALING_PARAMS;
@@ -330,6 +331,8 @@ using PVEBOX_CSC_PARAMS     = VEBOX_CSC_PARAMS *;
 
 using KERNEL_ARGS = std::vector<KRN_ARG>;
 using KERNEL_BTIS = std::map<uint32_t,uint32_t>;
+using KERNEL_INDEX_ARG_MAP              = std::map<uint32_t,KRN_ARG>;
+using MULTI_LAYERS_KERNEL_INDEX_ARG_MAP = std::map<uint32_t,KERNEL_INDEX_ARG_MAP>;
 
 struct _VEBOX_UPDATE_PARAMS
 {
