@@ -5589,6 +5589,27 @@ MOS_STATUS RenderHal_SetupBufferSurfaceState(
     RcsSurfaceParams.psSurface             = &pRenderHalSurface->OsSurface;
     RcsSurfaceParams.dwOffsetInSSH         = pSurfaceEntry->dwSurfStateOffset;
     RcsSurfaceParams.dwCacheabilityControl = pRenderHal->pfnGetSurfaceMemoryObjectControl(pRenderHal, pParams);
+    if (pParams->surfaceType)
+    {
+        MOS_CACHE_ELEMENT element(MOS_CODEC_RESOURCE_USAGE_BEGIN_CODEC, MOS_CODEC_RESOURCE_USAGE_BEGIN_CODEC);
+        bool              res = pRenderHal->pOsInterface->pfnGetCacheSetting(pParams->Component, pParams->surfaceType, pParams->isOutput, RENDER_ENGINE, element, false);
+        if (res)
+        {
+            RcsSurfaceParams.dwCacheabilityControl = (pRenderHal->pOsInterface->pfnCachePolicyGetMemoryObject(
+                                      element.mocsUsageType,
+                                      pRenderHal->pOsInterface->pfnGetGmmClientContext(pRenderHal->pOsInterface)))
+                                     .DwordValue;
+        }
+        else
+        {
+            MHW_RENDERHAL_ASSERTMESSAGE("Not found cache settings!");
+        }
+    }
+    else
+    {
+        MHW_RENDERHAL_NORMALMESSAGE("Not implemented yet! Will use MemObjCtl value %d", pParams->MemObjCtl);
+    }
+
     RcsSurfaceParams.bIsWritable           = pParams->isOutput;
     RcsSurfaceParams.bRenderTarget         = pParams->isOutput;
 
@@ -6239,9 +6260,10 @@ bool RenderHal_Is2PlaneNV12Needed(
 
     bRet = (!MOS_IS_ALIGNED(dwSurfaceHeight, heightAlignUnit) || !MOS_IS_ALIGNED(dwSurfaceWidth, widthAlignUnit));
 
-    // Note: Always using 2 plane NV12 as WA for the corruption of NV12 input
-    // of which the height is greater than 16352
-    bRet = bRet || (MEDIA_IS_WA(pRenderHal->pWaTable, Wa16KInputHeightNV12Planar420) && dwSurfaceHeight > 16352);
+    // Note: Always using 2 plane NV12 as WA for the corruption of NV12 input, of which the height is greater than 16352
+    // For 16k case, the height (16384) > 16383 which is the maximum capacity of DW (13:0).
+    // Gmm (OS level) need 32 aligned for planar height in the driver and we are processing height as 16384 for the height from 16353 to 16384.
+    bRet = bRet || (dwSurfaceHeight > 16352);
 
     return bRet;
 }
@@ -6437,7 +6459,10 @@ MOS_STATUS RenderHal_SetupSurfaceState(
         bool              res = pRenderHal->pOsInterface->pfnGetCacheSetting(pParams->Component, pParams->surfaceType, pParams->isOutput, RENDER_ENGINE, element, false);
         if (res)
         {
-            pParams->MemObjCtl = element.mocsUsageType;
+            pParams->MemObjCtl = (pRenderHal->pOsInterface->pfnCachePolicyGetMemoryObject(
+                                                            element.mocsUsageType,
+                                                            pRenderHal->pOsInterface->pfnGetGmmClientContext(pRenderHal->pOsInterface)))
+                                                            .DwordValue;
         }
         else
         {

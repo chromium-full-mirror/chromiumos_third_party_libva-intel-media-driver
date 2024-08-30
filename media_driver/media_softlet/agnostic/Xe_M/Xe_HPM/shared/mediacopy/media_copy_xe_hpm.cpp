@@ -181,7 +181,7 @@ bool MediaCopyState_Xe_Hpm::IsVeboxCopySupported(PMOS_RESOURCE src, PMOS_RESOURC
 
     if (m_veboxCopyState)
     {
-        supported = m_veboxCopyState->IsFormatSupported(src) && m_veboxCopyState->IsFormatSupported(dst);
+        supported = m_veboxCopyState->IsSurfaceSupported(src) && m_veboxCopyState->IsSurfaceSupported(dst);
     }
 
     if (src->TileType == MOS_TILE_LINEAR &&
@@ -243,5 +243,15 @@ MOS_STATUS MediaCopyState_Xe_Hpm::PreCheckCpCopy(
         m_allowCPBltCopy = false;
     }
 
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS MediaCopyState_Xe_Hpm::CopyEnigneSelect(MCPY_METHOD &preferMethod, MCPY_ENGINE &mcpyEngine, MCPY_ENGINE_CAPS &caps)
+{
+    if (preferMethod == MCPY_METHOD_DEFAULT)
+    {
+        preferMethod = MCPY_METHOD_PERFORMANCE;
+    }
+    MediaCopyBaseState::CopyEnigneSelect(preferMethod, mcpyEngine, caps);
     return MOS_STATUS_SUCCESS;
 }

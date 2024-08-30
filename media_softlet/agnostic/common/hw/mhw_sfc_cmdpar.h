@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2022, Intel Corporation
+* Copyright (c) 2022-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -141,7 +141,7 @@ struct _MHW_PAR_T(SFC_STATE)
     bool bCSCEnable                             = false;  // YUV->RGB/YUV->YUV CSC enable
     bool bRGBASwapEnable                        = false;  // R, B Channel Swap enable
     bool bInputColorSpace                       = false;  //0: YUV color space, 1:RGB color space
-
+    bool isFullRgbG10P709                       = false;  // Whether output colorspace is COLOR_SPACE_RGB_FULL_G10_NONE_P709
     // Memory compression Enable Flag
     bool bMMCEnable                             = false;            // Flag used to decide whether sfc output should be compressed
     MOS_RESOURCE_MMC_MODE MMCMode               = MOS_MMC_DISABLED; // Memory compression mode
@@ -188,11 +188,14 @@ struct _MHW_PAR_T(SFC_STATE)
     uint32_t      bottomFieldVerticalScalingOffset = 0;  // Bottom field vertical scaling offset
     PMOS_RESOURCE tempFieldResource = nullptr;           // Temp filed surface
 
+    PMOS_RESOURCE sfcIndirectState  = nullptr;
+
     PMOS_RESOURCE pOsResAVSLineBufferSplit[MHW_SFC_MAX_PIPE_NUM] = {};  //!< AVS Line buffer used by SFC
     PMOS_RESOURCE pOsResIEFLineBufferSplit[MHW_SFC_MAX_PIPE_NUM] = {};  //!< IEF Line buffer used by SFC
     PMHW_SFC_OUT_SURFACE_PARAMS             pOutSurface = nullptr;
     uint32_t      av1TileRowNumber                               = 0;
     uint32_t      av1TileColumnNumber                            = 0;
+    bool          isDemosaicEnabled                              = false;  //!< Enable Demosaic
 };
 
 struct _MHW_PAR_T(SFC_AVS_STATE)

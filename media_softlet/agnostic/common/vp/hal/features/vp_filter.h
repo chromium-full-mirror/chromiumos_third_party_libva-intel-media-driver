@@ -1,5 +1,5 @@
 ﻿/*
-* Copyright (c) 2018-2022, Intel Corporation
+* Copyright (c) 2018-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -161,6 +161,7 @@ struct _SFC_SCALING_PARAMS
     uint32_t                        interlacedScalingType;
     VPHAL_SAMPLE_TYPE               srcSampleType;
     VPHAL_SAMPLE_TYPE               dstSampleType;
+    bool                            isDemosaicNeeded;                           // 0: demosaic is not needed; 1: demosaic is needed
 };
 
 struct _SFC_CSC_PARAMS
@@ -178,6 +179,8 @@ struct _SFC_CSC_PARAMS
     uint32_t                        sfcSrcChromaSiting;                          // SFC Source Chroma Siting location
     uint32_t                        chromaDownSamplingVerticalCoef;              // Chroma DownSampling Vertical Coeff
     uint32_t                        chromaDownSamplingHorizontalCoef;            // Chroma DownSampling Horizontal Coeff
+    bool                            isFullRgbG10P709;                            // Whether output colorspace is DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709
+    bool                            isDemosaicNeeded;                            // 0: demosaic is not needed; 1: demosaic is needed       
 };
 
 struct _SFC_ROT_MIR_PARAMS
@@ -304,6 +307,8 @@ struct _VEBOX_HDR_PARAMS
     MOS_FORMAT                      dstFormat;
     HDR_STAGE                       stage;
     uint32_t                        lutSize;
+    bool                            isFp16Enable;
+    PVPHAL_3DLUT_PARAMS             external3DLutParams;
 };
 
 using SFC_SCALING_PARAMS    = _SFC_SCALING_PARAMS;
@@ -354,6 +359,8 @@ struct _RENDER_HDR_3DLUT_CAL_PARAMS
     VpKernelID                      kernelId;
     uint32_t                        threadWidth;
     uint32_t                        threadHeight;
+    uint32_t                        localWidth;
+    uint32_t                        localHeight;
     KERNEL_ARGS                     kernelArgs;
     void                            Init();
 };
@@ -444,18 +451,6 @@ struct CHROMA_LAYER_PARAMS
     uint32_t                                          uThreadWidth;
     uint32_t                                          uThreadHeight;
 };
-
-struct _RENDER_DI_FMD_PARAMS
-{
-    bool                  bEnableDiFmd;
-    uint32_t              uKernelID;
-    uint32_t              dwVeboxPerBlockStatisticsHeight;
-    uint32_t              dwVeboxPerBlockStatisticsWidth;
-    VpKernelID            kernelId;
-};
-
-using RENDER_DI_FMD_PARAMS  = _RENDER_DI_FMD_PARAMS;
-using PRENDER_DI_FMD_PARAMS = RENDER_DI_FMD_PARAMS *;
 
 struct _RENDER_FC_PARAMS
 {

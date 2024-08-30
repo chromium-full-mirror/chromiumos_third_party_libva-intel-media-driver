@@ -182,21 +182,21 @@ MOS_STATUS MosUserSetting::InitMosCommonUserSetting(MediaUserSettingSharedPtr us
         userSettingPtr,
         __MEDIA_USER_FEATURE_VALUE_IP_ALIGNMENT_DECODE_TIMEOUT,
         MediaUserSetting::Group::Device,
-        20,
+        12,
         false);
 
     DeclareUserSettingKey(
         userSettingPtr,
         __MEDIA_USER_FEATURE_VALUE_IP_ALIGNMENT_ENCODE_TIMEOUT,
         MediaUserSetting::Group::Device,
-        20,
+        12,
         false);
 
     DeclareUserSettingKey(
         userSettingPtr,
         __MEDIA_USER_FEATURE_VALUE_IP_ALIGNMENT_VPP_TIMEOUT,
         MediaUserSetting::Group::Device,
-        20,
+        12,
         false);
 
     DeclareUserSettingKey(  //TRUE for Enabling Vebox Scalability. (Default FALSE: disabled")
@@ -918,6 +918,13 @@ MOS_STATUS MosUserSetting::InitUserSettingForDebug(MediaUserSettingSharedPtr use
         MediaUserSetting::Group::Device,
         1,
         true); //"If enabled, media reset will be enabled."
+
+    DeclareUserSettingKeyForDebug(
+        userSettingPtr,
+        __MEDIA_USER_FEATURE_VALUE_FORCE_MEDIA_COMPRESSED_WRITE,
+        MediaUserSetting::Group::Device,
+        0,
+        true); //"If enabled, then to disable Unifined CMF."
 
     DeclareUserSettingKeyForDebug(
         userSettingPtr,

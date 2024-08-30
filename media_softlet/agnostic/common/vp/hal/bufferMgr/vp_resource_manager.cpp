@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018-2023, Intel Corporation
+* Copyright (c) 2018-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -802,6 +802,13 @@ MOS_STATUS VpResourceManager::GetIntermediaOutputSurfaceParams(VP_EXECUTE_CAPS& 
         params.rcSrc = scaling->GetSwFilterParams().output.rcSrc;
         params.rcDst = scaling->GetSwFilterParams().output.rcDst;
         params.rcMaxSrc = scaling->GetSwFilterParams().output.rcMaxSrc;
+
+        if (scaling->GetSwFilterParams().interlacedScalingType == ISCALING_INTERLEAVED_TO_FIELD)
+        {
+            params.height = scaling->GetSwFilterParams().output.dwHeight / 2;
+            params.rcDst.bottom = params.rcDst.bottom / 2;
+            params.rcMaxSrc.bottom = params.rcMaxSrc.bottom / 2;
+        }
     }
     else
     {
@@ -1214,15 +1221,37 @@ MOS_STATUS VpResourceManager::AssignExecuteResource(VP_EXECUTE_CAPS& caps, std::
     return MOS_STATUS_SUCCESS;
 }
 
+VPHAL_CSPACE GetDemosaicOutputColorSpace(VPHAL_CSPACE colorSpace)
+{
+    return IS_COLOR_SPACE_BT2020(colorSpace) ? CSpace_BT2020_RGB : CSpace_sRGB;
+}
+
+MOS_FORMAT GetDemosaicOutputFormat(VPHAL_CSPACE colorSpace)
+{
+    return IS_COLOR_SPACE_BT2020(colorSpace) ? Format_R10G10B10A2 : Format_A8B8G8R8;
+}
+
 MOS_STATUS GetVeboxOutputParams(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputFormat, MOS_TILE_TYPE inputTileType, MOS_FORMAT outputFormat,
-                                MOS_FORMAT &veboxOutputFormat, MOS_TILE_TYPE &veboxOutputTileType)
+                                MOS_FORMAT &veboxOutputFormat, MOS_TILE_TYPE &veboxOutputTileType, VPHAL_CSPACE colorSpaceOutput)
 {
     VP_FUNC_CALL();
 
     // Vebox Chroma Co-Sited downsampleing is part of VEO. It only affects format of vebox output surface, but not
     // affect sfc input format, that's why different logic between GetSfcInputFormat and GetVeboxOutputParams.
     // Check DI first and downsampling to NV12 if possible to save bandwidth no matter IECP enabled or not.
-    if (executeCaps.bDI || executeCaps.bDiProcess2ndField)
+    if (executeCaps.b3DlutOutput)
+    {
+        if (IS_RGB64_FLOAT_FORMAT(outputFormat))  // SFC output FP16, YUV->ABGR16
+        {
+            veboxOutputFormat = Format_A16B16G16R16;
+        }
+        else
+        {
+            veboxOutputFormat = IS_COLOR_SPACE_BT2020(colorSpaceOutput) ? Format_R10G10B10A2 : Format_A8B8G8R8;
+        }
+        veboxOutputTileType = inputTileType;
+    }
+    else if (executeCaps.bDI || executeCaps.bDiProcess2ndField)
     {
         // NV12 will be used if target output is not YUV2 to save bandwidth.
         if (outputFormat == Format_YUY2)
@@ -1248,6 +1277,11 @@ MOS_STATUS GetVeboxOutputParams(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputFo
         veboxOutputFormat = Format_AYUV;
         veboxOutputTileType = inputTileType;
     }
+    else if (executeCaps.bDemosaicInUse)
+    {
+        veboxOutputFormat = GetDemosaicOutputFormat(colorSpaceOutput);
+        veboxOutputTileType = inputTileType;
+    }
     else
     {
         veboxOutputFormat = inputFormat;
@@ -1257,7 +1291,8 @@ MOS_STATUS GetVeboxOutputParams(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputFo
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_FORMAT GetSfcInputFormat(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputFormat, VPHAL_CSPACE colorSpaceOutput)
+
+MOS_FORMAT GetSfcInputFormat(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputFormat, VPHAL_CSPACE colorSpaceOutput, MOS_FORMAT outputFormat)
 {
     VP_FUNC_CALL();
 
@@ -1267,7 +1302,14 @@ MOS_FORMAT GetSfcInputFormat(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputForma
     // Then Check IECP, since IECP is done after DI, and the vebox downsampling not affect the vebox input.
     if (executeCaps.b3DlutOutput)
     {
-        return IS_COLOR_SPACE_BT2020(colorSpaceOutput) ? Format_R10G10B10A2 : Format_A8B8G8R8;
+        if (IS_RGB64_FLOAT_FORMAT(outputFormat))    // SFC output FP16, YUV->ABGR16
+        {
+            return Format_A16B16G16R16;
+        }
+        else
+        {
+            return IS_COLOR_SPACE_BT2020(colorSpaceOutput) ? Format_R10G10B10A2 : Format_A8B8G8R8;
+        }
     }
     else if (executeCaps.bIECP && executeCaps.bCGC && executeCaps.bBt2020ToRGB)
     {
@@ -1287,6 +1329,10 @@ MOS_FORMAT GetSfcInputFormat(VP_EXECUTE_CAPS &executeCaps, MOS_FORMAT inputForma
         // For executeCaps.bDiProcess2ndField, no DI enabled in vebox, so no need
         // set to YUY2 here.
         return Format_YUY2;
+    }
+    else if (executeCaps.bDemosaicInUse)
+    {
+        return GetDemosaicOutputFormat(colorSpaceOutput);
     }
 
     return inputFormat;
@@ -1316,7 +1362,7 @@ MOS_STATUS VpResourceManager::ReAllocateVeboxOutputSurface(VP_EXECUTE_CAPS& caps
     MOS_TILE_TYPE   veboxOutputTileType                 = inputSurface->osSurface->TileType;
 
     VP_PUBLIC_CHK_STATUS_RETURN(GetVeboxOutputParams(caps, inputSurface->osSurface->Format, inputSurface->osSurface->TileType,
-                                            outputSurface->osSurface->Format, veboxOutputFormat, veboxOutputTileType));
+                                            outputSurface->osSurface->Format, veboxOutputFormat, veboxOutputTileType, outputSurface->ColorSpace));
 
     allocated = false;
 
@@ -1326,17 +1372,8 @@ MOS_STATUS VpResourceManager::ReAllocateVeboxOutputSurface(VP_EXECUTE_CAPS& caps
         enableVeboxOutputSurf = m_vpUserFeatureControl->IsVeboxOutputSurfEnabled();
     }
 
-    if (enableVeboxOutputSurf || IS_VP_VEBOX_DN_ONLY(caps))
-    {
-        bSurfCompressible   = inputSurface->osSurface->bCompressible;
-        surfCompressionMode = inputSurface->osSurface->CompressionMode;
-    }
-    else
-    {
-        bSurfCompressible   = true;
-        surfCompressionMode = MOS_MMC_MC;
-
-    }
+    bSurfCompressible   = inputSurface->osSurface->bCompressible;
+    surfCompressionMode = inputSurface->osSurface->CompressionMode;
 
     if (m_currentFrameIds.pastFrameAvailable && m_currentFrameIds.futureFrameAvailable)
     {

@@ -54,23 +54,23 @@
 
 #define DL_MAX_SEARCH_FILTER_SIZE 10  // max number of entries to describe a compositing filter
 
-#define DL_MAX_KERNELS 150         // Max component kernels to combine
+#define DL_MAX_KERNELS 256         // Max component kernels to combine
 #define DL_MAX_PATCH_DATA_SIZE 64  // Max size of a patch block
 #define DL_MAX_PATCH_BLOCKS 8      // Max number of blocks to patch per patch data
-#define DL_MAX_PATCHES 4           // Max patches to use
+#define DL_MAX_PATCHES 8           // Max patches to use
 #define DL_MAX_EXPORT_COUNT 64     // size of the symbol export table
 
 #define DL_MAX_COMBINED_KERNELS 64       // Max number of kernels in cache
 #define DL_MAX_SYMBOLS 100               // max number of import/export symbols in a combined kernels
-#define DL_MAX_KERNEL_SIZE (140 * 1024)  // max output kernel size
+#define DL_MAX_KERNEL_SIZE (160 * 1024)  // max output kernel size
 
-#define DL_CSC_MAX 6                      // 6 CSC matrices max
+#define DL_CSC_MAX 8                      // 8 CSC matrices max
 #define DL_MAX_SEARCH_NODES_PER_KERNEL 6  // max number of search nodes for a component kernel (max tree depth)
 #define DL_MAX_COMPONENT_KERNELS 25       // max number of component kernels that can be combined
 
 #define DL_DEFAULT_COMBINED_KERNELS 4                                                  // Default number of kernels in cache
 #define DL_NEW_COMBINED_KERNELS 4                                                      // The increased number of kernels in cache each time
-#define DL_CACHE_BLOCK_SIZE (140 * 1024)                                               // Kernel allocation block size
+#define DL_CACHE_BLOCK_SIZE (160 * 1024)                                               // Kernel allocation block size
 #define DL_COMBINED_KERNEL_CACHE_SIZE (DL_CACHE_BLOCK_SIZE * DL_NEW_COMBINED_KERNELS)  // Combined kernel size
 
 #define DL_PROCAMP_DISABLED -1  // procamp is disabled

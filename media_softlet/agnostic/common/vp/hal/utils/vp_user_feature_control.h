@@ -59,12 +59,14 @@ public:
         uint32_t enabledSFCNv12P010LinearOutput = 0;
         uint32_t enabledSFCRGBPRGB24Output  = 0;
         bool     enableIFNCC                    = false;
+        bool     bEnableL03DLut                 = false;
 #endif
         bool disablePacketReuse             = false;
         bool enablePacketReuseTeamsAlways   = false;
 
         VPHAL_HDR_LUT_MODE globalLutMode      = VPHAL_HDR_LUT_MODE_NONE;  //!< Global LUT mode control for debugging purpose
         bool               gpuGenerate3DLUT   = false;                        //!< Flag for per frame GPU generation of 3DLUT
+        bool               isExternal3DLutSupport  = true;
         bool               disableAutoMode    = false;
         bool               clearVideoViewMode = false;
         uint32_t           splitFramePortions = 1;
@@ -95,6 +97,11 @@ public:
     bool EnableIFNCC() 
     {
         return m_ctrlVal.enableIFNCC;
+    }
+
+    bool EnableL03DLut()
+    {
+        return m_ctrlVal.bEnableL03DLut;
     }
 #endif
 
@@ -155,6 +162,11 @@ public:
     bool IsGpuGenerate3DLUT()
     {
         return m_ctrlVal.gpuGenerate3DLUT;
+    }
+
+    bool IsExternal3DLutSupport()
+    {
+        return m_ctrlVal.isExternal3DLutSupport;
     }
 
     bool IsDisableAutoMode()

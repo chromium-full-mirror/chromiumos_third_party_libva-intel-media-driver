@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2018-2023, Intel Corporation
+* Copyright (c) 2018-2024, Intel Corporation
 *
 * Permission is hereby granted, free of charge, to any person obtaining a
 * copy of this software and associated documentation files (the "Software"),
@@ -876,6 +876,14 @@ MOS_STATUS VpSurfaceDumper::CopyThenLockResources(
 
     bool           bAllocated;
 
+    Mos_MemPool memType = MOS_MEMPOOL_SYSTEMMEMORY;
+#if !EMUL
+    if (pSurface->OsResource.pGmmResInfo->GetSetCpSurfTag(false, 0) != 0)
+    {
+        memType = MOS_MEMPOOL_VIDEOMEMORY;
+    }
+#endif
+
     temp2DSurfForCopy = (PVPHAL_SURFACE)MOS_AllocAndZeroMemory(sizeof(VPHAL_SURFACE));
     VP_DEBUG_CHK_NULL_RETURN(temp2DSurfForCopy);
     VP_DEBUG_CHK_STATUS_RETURN(VpUtils::ReAllocateSurface(
@@ -892,7 +900,7 @@ MOS_STATUS VpSurfaceDumper::CopyThenLockResources(
         &bAllocated,
         MOS_HW_RESOURCE_DEF_MAX,
         MOS_TILE_UNSET_GMM,
-        MOS_MEMPOOL_SYSTEMMEMORY));
+        memType));
 
     pOsInterface->pfnDoubleBufferCopyResource(
         pOsInterface,
@@ -2773,6 +2781,13 @@ MOS_STATUS VpParameterDumper::DumpTargetSurface(
     VP_DEBUG_CHK_STATUS(VpDumperTool::AppendString(false, &pcOutContents, "\t\t\t\t<DEFAULT_COLOR type=\"integer\">0x000000FF</DEFAULT_COLOR>\n"));
     VP_DEBUG_CHK_STATUS(VpDumperTool::AppendString(false, &pcOutContents, "\t\t\t\t<FILE></FILE>\n"));
     VP_DEBUG_CHK_STATUS(VpDumperTool::AppendString(false, &pcOutContents, "\t\t\t</DATA>\n"));
+    //Gamut
+    if (pTarget->pGamutParams)
+    {
+        VP_DEBUG_CHK_STATUS(VpDumperTool::AppendString(false, &pcOutContents, "\t\t<VPHAL_GAMUT_PARAMS>\n"));
+        VP_DEBUG_CHK_STATUS(VpDumperTool::AppendString(false, &pcOutContents, "\t\t\t<GAMMA_VALUE>%s</GAMMA_VALUE>\n", VpParameterDumper::GetGammaValueTypeStr(pTarget->pGamutParams->GammaValue)));
+        VP_DEBUG_CHK_STATUS(VpDumperTool::AppendString(false, &pcOutContents, "\t\t</VPHAL_GAMUT_PARAMS>\n"));
+    }
 
 finish:
     return eStatus;
@@ -3003,6 +3018,8 @@ const char * VpDumperTool::GetFormatStr(MOS_FORMAT format)
         case Format_Y410        : return _T("y410");
         case Format_P210        : return _T("p210");
         case Format_P216        : return _T("p216");
+        case Format_A16B16G16R16F : return _T("abgr16_float");
+        case Format_A16R16G16B16F : return _T("argb16_float");
         default                 : return _T("Err");
     }
 
@@ -3661,6 +3678,8 @@ const char * VpParameterDumper::GetWholeFormatStr(MOS_FORMAT format)
     case Format_P216:               return _T("Format_P216");
     case Format_YV12_Planar:        return _T("Format_YV12_Planar");
     case Format_Count:              return _T("Format_Count");
+    case Format_A16B16G16R16F:      return _T("Format_A16B16G16R16F");
+    case Format_A16R16G16B16F:      return _T("Format_A16R16G16B16F");
     default:                        return _T("Err");
     }
 
@@ -3716,6 +3735,25 @@ const char * VpParameterDumper::GetSurfaceTypeStr(VPHAL_SURFACE_TYPE surface_typ
     case SURF_OUT_RENDERTARGET: return _T("SURF_OUT_RENDERTARGET");
     case SURF_TYPE_COUNT:       return _T("SURF_TYPE_COUNT");
     default: return _T("Err");
+    }
+
+    return nullptr;
+}
+
+const char *VpParameterDumper::GetGammaValueTypeStr(VPHAL_GAMMA_VALUE gamma_value)
+{
+    VP_FUNC_CALL();
+
+    switch (gamma_value)
+    {
+    case GAMMA_1P0:
+        return _T("GAMMA_1P0");
+    case GAMMA_2P2:
+        return _T("GAMMA_2P2");
+    case GAMMA_2P6:
+        return _T("GAMMA_2P6");
+    default:
+        return _T("Err");
     }
 
     return nullptr;

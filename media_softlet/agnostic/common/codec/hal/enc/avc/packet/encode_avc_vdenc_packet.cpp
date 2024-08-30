@@ -305,6 +305,10 @@ namespace encode {
         ENCODE_FUNC_CALL();
         ENCODE_CHK_NULL_RETURN(m_basicFeature);
         ENCODE_CHK_NULL_RETURN(m_basicFeature->m_trackedBuf);
+        ENCODE_CHK_NULL_RETURN(m_seqParam);
+
+        // Set flag bIsMdfLoad in remote gaming scenario to boost GPU frequency for low latency
+        cmdBuffer.Attributes.bFrequencyBoost = (m_seqParam->ScenarioInfo == ESCENARIO_REMOTEGAMING);
 
         ENCODE_CHK_STATUS_RETURN(m_miItf->SetWatchdogTimerThreshold(m_basicFeature->m_frameWidth, m_basicFeature->m_frameHeight, true));
 
@@ -373,7 +377,13 @@ namespace encode {
             secondLevelBatchBufferUsed = &(m_batchBufferForVdencImgStat[m_pipeline->m_currRecycledBufIdx]);
 
             // CQP case, driver programs the 2nd Level BB
-            ENCODE_CHK_STATUS_RETURN(Mhw_LockBb(m_osInterface, secondLevelBatchBufferUsed));
+            MOS_STATUS status = Mhw_LockBb(m_osInterface, secondLevelBatchBufferUsed);
+            if (status != MOS_STATUS_SUCCESS)
+            {
+                ENCODE_NORMALMESSAGE("ERROR - Recycled buffer index exceed the maximum");
+                SETPAR_AND_ADDCMD(MI_BATCH_BUFFER_END, m_miItf, &cmdBuffer);
+                return status;
+            }
 
             SETPAR_AND_ADDCMD(MFX_AVC_IMG_STATE, m_mfxItf, nullptr, secondLevelBatchBufferUsed);
             SETPAR_AND_ADDCMD(VDENC_CMD3, m_vdencItf, nullptr, secondLevelBatchBufferUsed);
@@ -1426,9 +1436,6 @@ namespace encode {
         MOS_COMMAND_BUFFER &cmdBuffer)
     {
         ENCODE_FUNC_CALL();
-
-        // Set flag bIsMdfLoad in remote gaming scenario to boost GPU frequency for low latency
-        cmdBuffer.Attributes.bFrequencyBoost = (m_seqParam->ScenarioInfo == ESCENARIO_REMOTEGAMING);
 
         auto packetUtilities = m_pipeline->GetPacketUtilities();
         ENCODE_CHK_NULL_RETURN(packetUtilities);

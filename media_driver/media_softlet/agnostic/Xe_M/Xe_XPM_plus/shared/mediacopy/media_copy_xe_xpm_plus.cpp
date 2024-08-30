@@ -192,7 +192,12 @@ MOS_STATUS MediaCopyStateXe_Xpm_Plus::MediaRenderCopy(PMOS_RESOURCE src, PMOS_RE
     }
 }
 
-MOS_STATUS MediaCopyStateXe_Xpm_Plus::CapabilityCheck(MCPY_STATE_PARAMS& mcpySrc, MCPY_STATE_PARAMS& mcpyDst, MCPY_ENGINE_CAPS& caps)
+MOS_STATUS MediaCopyStateXe_Xpm_Plus::CapabilityCheck(
+    MOS_FORMAT         format,
+    MCPY_STATE_PARAMS &mcpySrc,
+    MCPY_STATE_PARAMS &mcpyDst,
+    MCPY_ENGINE_CAPS  &caps,
+    MCPY_METHOD        preferMethod)
 {
     // init hw enigne caps.pvc doesn't have vebox
     caps.engineBlt    = 1;
@@ -226,7 +231,7 @@ MOS_STATUS MediaCopyStateXe_Xpm_Plus::CapabilityCheck(MCPY_STATE_PARAMS& mcpySrc
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS MediaCopyStateXe_Xpm_Plus::CopyEnigneSelect(MCPY_METHOD preferMethod, MCPY_ENGINE& mcpyEngine, MCPY_ENGINE_CAPS& caps)
+MOS_STATUS MediaCopyStateXe_Xpm_Plus::CopyEnigneSelect(MCPY_METHOD& preferMethod, MCPY_ENGINE& mcpyEngine, MCPY_ENGINE_CAPS& caps)
 {
     // assume perf render > vebox > blt. blt data should be measured.
     // driver should make sure there is at least one he can process copy even customer choice doesn't match caps.

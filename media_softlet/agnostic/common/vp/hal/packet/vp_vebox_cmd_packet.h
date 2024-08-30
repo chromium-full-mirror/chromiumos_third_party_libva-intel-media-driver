@@ -930,6 +930,7 @@ public:
     uint32_t curNoiseLevelV_Temporal      = 0;  //!< Temporal Noise Level for V
     bool     m_bTgneEnable                = true;
     bool     m_bTgneValid                 = false;
+    bool     m_bFallback                  = false;
 
     mhw::vebox::MHW_VEBOX_CHROMA_PARAMS veboxChromaParams = {};
 
@@ -1123,6 +1124,8 @@ protected:
     virtual MOS_STATUS Init3DLutTable(PVP_SURFACE surf3DLut);
     void    UpdateCpPrepareResources();
     virtual MOS_STATUS SetupVebox3DLutForHDR(
+        mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
+    virtual MOS_STATUS SetupVeboxExternal3DLutforHDR(
         mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
 
 private:

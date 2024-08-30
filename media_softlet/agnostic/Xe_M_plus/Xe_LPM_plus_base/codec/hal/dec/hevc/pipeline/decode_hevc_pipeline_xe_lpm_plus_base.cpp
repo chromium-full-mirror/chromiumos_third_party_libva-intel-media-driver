@@ -253,6 +253,14 @@ MOS_STATUS HevcPipelineXe_Lpm_Plus_Base::Prepare(void *params)
             inputParameters.numUsedVdbox               = m_numVdbox;
             inputParameters.numSlices                  = m_basicFeature->m_numSlices;
             inputParameters.currDecodedPicRes          = m_basicFeature->m_destSurface.OsResource;
+
+            CODECHAL_DEBUG_TOOL(
+                if (m_streamout != nullptr)  
+                {  
+                    DECODE_CHK_STATUS(m_streamout->InitStatusReportParam(inputParameters));  
+                }  
+            );
+
 #if (_DEBUG || _RELEASE_INTERNAL)
 #ifdef _DECODE_PROCESSING_SUPPORTED
             DecodeDownSamplingFeature* downSamplingFeature = dynamic_cast<DecodeDownSamplingFeature*>(
@@ -345,7 +353,10 @@ MOS_STATUS HevcPipelineXe_Lpm_Plus_Base::GetStatusReport(void *status, uint16_t 
 MOS_STATUS HevcPipelineXe_Lpm_Plus_Base::Destroy()
 {
     DECODE_FUNC_CALL();
-    DECODE_CHK_STATUS(m_allocator->Destroy(m_secondLevelBBArray));
+    if (m_allocator != nullptr)
+    {
+        DECODE_CHK_STATUS(m_allocator->Destroy(m_secondLevelBBArray));
+    }
     DECODE_CHK_STATUS(Uninitialize());
 
     return MOS_STATUS_SUCCESS;

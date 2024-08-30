@@ -723,7 +723,57 @@ MOS_STATUS MosInterface::AddCommand(
 }
 
 #if MOS_COMMAND_BUFFER_DUMP_SUPPORTED
-MOS_STATUS MosInterface::DumpIndirectState(
+MOS_STATUS MosInterface::DumpIndirectStates(MOS_STREAM_HANDLE streamState, const char *filePathPrefix, std::time_t currentTime)
+{
+    MOS_OS_CHK_NULL_RETURN(streamState);
+    MOS_STATUS     eStatus                 = MOS_STATUS_SUCCESS;
+    auto           &inDirectStateInfoArray = streamState->indirectStateInfo;
+    const uint32_t SIZE_OF_ONE_WORD        = 9;
+
+    for (auto &lastElement : inDirectStateInfoArray)
+    {
+        if (lastElement.indirectState == nullptr)
+        {
+            MOS_OS_NORMALMESSAGE("IndirectState pointer is nullptr");
+            continue;
+        }
+        uint32_t         *data             = (uint32_t *)lastElement.indirectState;
+        uint32_t          dwordCount       = lastElement.stateSize / 4;
+        uint32_t          dwBytesWritten   = 0;
+        uint32_t          dwSizeToAllocate = 0;
+        char             *outputBuffer     = nullptr;
+        std::stringstream fileName;
+
+        dwSizeToAllocate = dwordCount * (SIZE_OF_ONE_WORD + 1);               // Add 1 byte for the space following each Dword.
+        outputBuffer     = (char *)MOS_AllocAndZeroMemory(dwSizeToAllocate);  // Alloc output buffer.
+        if (outputBuffer == nullptr)
+        {
+            MOS_OS_NORMALMESSAGE("Alloc outputBuffer failed");
+            inDirectStateInfoArray.clear();
+            return MOS_STATUS_SUCCESS;
+        }
+        for (uint32_t i = 0; i < dwordCount; ++i)
+        {
+            dwBytesWritten += MosUtilities::MosSecureStringPrint(
+                outputBuffer + dwBytesWritten,
+                SIZE_OF_ONE_WORD + 1,
+                SIZE_OF_ONE_WORD + 1,
+                "%.8x ",
+                data[i]);
+        }
+        fileName << filePathPrefix << "_" << std::hex << *lastElement.gfxAddressBottom << "_" << *lastElement.gfxAddressTop << "_" << lastElement.stateName << ".txt";
+        eStatus = MosUtilities::MosAppendFileFromPtr((const char *)fileName.str().c_str(), outputBuffer, dwBytesWritten);
+        if (eStatus != MOS_STATUS_SUCCESS)
+        {
+            MOS_OS_NORMALMESSAGE("DumpIndirectStates %s failed", fileName.str().c_str());
+        }
+        MOS_FreeMemory(outputBuffer);
+    }
+    inDirectStateInfoArray.clear();
+    return eStatus;
+}
+
+MOS_STATUS MosInterface::DumpBindingTable(
     MOS_STREAM_HANDLE     streamState,
     COMMAND_BUFFER_HANDLE cmdBuffer,
     MOS_GPU_NODE          gpuNode,
@@ -791,6 +841,7 @@ MOS_STATUS MosInterface::DumpCommandBuffer(
     // Maximum length of engine name is 6
     char sEngName[6];
     size_t nSizeFileNamePrefix   = 0;
+    std::time_t currentTime      = std::time(nullptr);
 
     MOS_OS_CHK_NULL_RETURN(streamState);
     MOS_OS_CHK_NULL_RETURN(cmdBuffer);
@@ -846,12 +897,13 @@ MOS_STATUS MosInterface::DumpCommandBuffer(
             sFileName + nSizeFileNamePrefix,
             sizeof(sFileName) - nSizeFileNamePrefix,
             sizeof(sFileName) - nSizeFileNamePrefix,
-            "%c%s%c%s_%d.txt",
+            "%c%s%c%s_%d_%d.txt",
             MOS_DIR_SEPERATOR,
             MOS_COMMAND_BUFFER_OUT_DIR,
             MOS_DIR_SEPERATOR,
             MOS_COMMAND_BUFFER_OUT_FILE,
-            dwCommandBufferNumber);
+            dwCommandBufferNumber,
+            currentTime);
 
         // Write the output buffer to file.
         if((eStatus = MosUtilities::MosWriteFileFromPtr((const char *)sFileName, pOutputBuffer, dwBytesWritten)) != MOS_STATUS_SUCCESS)
@@ -906,10 +958,15 @@ MOS_STATUS MosInterface::DumpCommandBuffer(
             MOS_FreeMemory(pOutputBuffer);
             MOS_OS_CHK_STATUS_RETURN(eStatus);
         }
-        if((eStatus = DumpIndirectState(streamState, cmdBuffer, gpuNode, sFileName)) != MOS_STATUS_SUCCESS)
+        if ((eStatus = DumpBindingTable(streamState, cmdBuffer, gpuNode, sFileName)) != MOS_STATUS_SUCCESS)
         {
             MOS_FreeMemory(pOutputBuffer);
-            MOS_OS_CHK_STATUS_RETURN(eStatus);
+            return eStatus;
+        }
+        if ((eStatus = DumpIndirectStates(streamState, sFileName, currentTime)) != MOS_STATUS_SUCCESS)
+        {
+            MOS_FreeMemory(pOutputBuffer);
+            return eStatus;
         }
     }
 
@@ -1886,6 +1943,17 @@ MOS_STATUS MosInterface::GetResourceInfo(
     details.bIsCompressed   = gmmResourceInfo->IsMediaMemoryCompressed(0);
     details.CompressionMode = (MOS_RESOURCE_MMC_MODE)gmmResourceInfo->GetMmcMode(0);
 
+    auto skuTable = MosInterface::GetSkuTable(streamState);
+    if(skuTable && MEDIA_IS_SKU(skuTable, FtrNewCompression))
+    {
+        if (gmmResourceInfo->GetResFlags().Info.MediaCompressed == 1)
+        {
+            details.CompressionMode = MOS_MMC_MC;
+            details.bIsCompressed = 1;
+            details.bCompressible = (details.CompressionMode != MOS_MMC_DISABLED) ? true : false;
+        }
+    }
+
     if (0 == details.dwPitch)
     {
         MOS_OS_ASSERTMESSAGE("Pitch from GmmResource is 0, unexpected.");
@@ -2201,7 +2269,8 @@ MOS_STATUS MosInterface::ResourceSyncCallback(
     SYNC_HAZARD         hazardType,
     GPU_CONTEXT_HANDLE  busyCtx,
     GPU_CONTEXT_HANDLE  requestorCtx,
-    OS_HANDLE           osHandle)
+    OS_HANDLE           osHandle,
+    SYNC_FENCE_INFO_TRINITY *fenceInfoTrinity)
 {
     MOS_OS_FUNCTION_ENTER;
 
@@ -2318,6 +2387,23 @@ MOS_STATUS MosInterface::GetMemoryCompressionMode(
     // Get Gmm resource info
     gmmResourceInfo = (GMM_RESOURCE_INFO *)resource->pGmmResInfo;
     MOS_OS_CHK_NULL_RETURN(gmmResourceInfo);
+    auto skuTable = GetSkuTable(streamState);
+    MOS_OS_CHK_NULL_RETURN(MosInterface::GetGmmClientContext(streamState));
+    MOS_OS_CHK_NULL_RETURN(skuTable);
+
+    if (MEDIA_IS_SKU(skuTable, FtrNewCompression))
+    {
+        // reusing MC to mark all media engins to turn on compression
+        if (resource->pGmmResInfo->GetResFlags().Info.MediaCompressed == 1)
+        {
+            resMmcMode = MOS_MEMCOMP_MC;
+        }
+        else
+        {
+            resMmcMode = MOS_MEMCOMP_DISABLED;
+        }
+        return MOS_STATUS_SUCCESS;
+    }
 
     flags = resource->pGmmResInfo->GetResFlags();
 
@@ -2351,9 +2437,6 @@ MOS_STATUS MosInterface::GetMemoryCompressionMode(
     uint32_t          MmcFormat = 0;
     GMM_RESOURCE_FORMAT gmmResFmt;
     gmmResFmt = gmmResourceInfo->GetResourceFormat();
-    auto skuTable = GetSkuTable(streamState);
-    MOS_OS_CHK_NULL_RETURN(MosInterface::GetGmmClientContext(streamState));
-    MOS_OS_CHK_NULL_RETURN(skuTable);
 
     if (resMmcMode == MOS_MEMCOMP_MC)
     {
@@ -2816,10 +2899,53 @@ unsigned int MosInterface::GetPATIndexFromGmm(
 {
     if (gmmClient && gmmResourceInfo)
     {
+        auto IsFormatSupportCompression = [=]()->bool
+        {
+            // formats support compression match to copy supported formats except RGBP&BGRP
+            switch(GmmFmtToMosFmt(gmmResourceInfo->GetResourceFormat()))
+            {
+            case Format_NV12:
+            case Format_YV12:
+            case Format_I420:
+            case Format_P010:
+            case Format_Y410:
+            case Format_Y416:
+            case Format_Y210:
+            case Format_Y216:
+            case Format_YUY2:
+            case Format_R5G6B5:
+            case Format_R8G8B8:
+            case Format_A8R8G8B8:
+            case Format_A8B8G8R8:
+            case Format_X8R8G8B8:
+            case Format_X8B8G8R8:
+            case Format_AYUV:
+            case Format_R10G10B10A2:
+            case Format_B10G10R10A2:
+            case Format_P8:
+            case Format_L8:
+            case Format_A8:
+            case Format_Y16U:
+                return true;
+            case Format_P016:
+                // For P016 format we use SW swizzle because of history with reason (some hard code plane offset calculation in vaGetImage/vaPutImage).
+                return false;
+            default:
+                return false;
+            }
+        };
         // GetDriverProtectionBits funtion could hide gmm details info,
         // and we should use GetDriverProtectionBits to replace CachePolicyGetPATIndex in future.
         // isCompressionEnable could be false temparaily.
         bool isCompressionEnable = false;
+        if (gmmResourceInfo->GetResFlags().Info.MediaCompressed     &&
+            IsFormatSupportCompression()                            &&
+            gmmResourceInfo->GetResFlags().Info.Tile4 == 1          &&
+            gmmResourceInfo->GetBaseWidth() > 64                    &&
+            gmmResourceInfo->GetBaseHeight() > 64)
+        {
+            isCompressionEnable = true;
+        }
         return gmmClient->CachePolicyGetPATIndex(
                                             gmmResourceInfo,
                                             gmmResourceInfo->GetCachePolicyUsage(),

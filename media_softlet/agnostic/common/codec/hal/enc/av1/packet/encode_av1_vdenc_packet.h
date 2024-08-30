@@ -173,6 +173,8 @@ protected:
     //!         MOS_STATUS_SUCCESS if success, else fail reason
     //!
     virtual MOS_STATUS DumpInput();
+
+    virtual MOS_STATUS DumpStatistics();
 #endif
 
     virtual MOS_STATUS AllocateResources();
@@ -189,8 +191,22 @@ protected:
         MHW_VDBOX_NODE_IND vdboxIndex,
         MediaStatusReport  *statusReport,
         MOS_COMMAND_BUFFER &cmdBuffer);
+    
+    virtual MOS_STATUS AddOneTileCommands(
+        MOS_COMMAND_BUFFER  &cmdBuffer,
+        uint32_t            tileRow,
+        uint32_t            tileCol,
+        uint32_t            tileRowPass = 0) = 0;
+
+    virtual MOS_STATUS EnsureAllCommandsExecuted(MOS_COMMAND_BUFFER &cmdBuffer) = 0;
+
+    virtual MOS_STATUS PatchTileLevelCommands(MOS_COMMAND_BUFFER &cmdBuffer, uint8_t packetPhase);
 
     MOS_STATUS AddCondBBEndFor2ndPass(MOS_COMMAND_BUFFER &cmdBuffer);
+
+    virtual MOS_STATUS Construct3rdLevelBatch();
+
+    virtual MOS_STATUS UpdateUserFeatureKey(PMOS_SURFACE surface);
 
     virtual MOS_STATUS UpdateStatusReport(uint32_t srType, MOS_COMMAND_BUFFER *cmdBuffer) override;
 
@@ -234,6 +250,7 @@ protected:
     //!
     virtual MOS_STATUS CalculateAvpCommandsSize();
     virtual MOS_STATUS AddPictureVdencCommands(MOS_COMMAND_BUFFER &cmdBuffer);
+    virtual MOS_STATUS PatchPictureLevelCommands(const uint8_t &packetPhase, MOS_COMMAND_BUFFER &cmdBuffer);
 
 #if USE_CODECHAL_DEBUG_TOOL
     //! \brief    Dump the output resources in status report callback function
@@ -275,6 +292,7 @@ protected:
 
     AtomicScratchBufferAv1 m_atomicScratchBuf = {};  //!< Stores atomic operands and result
 
+    bool m_userFeatureUpdated_post_cdef                 = false;    //!< Inidate if mmc user feature key for post cdef is updated
     bool m_vdencPakObjCmdStreamOutEnabled               = false;    //!< Pakobj stream out enable flag
     PMOS_RESOURCE m_resCumulativeCuCountStreamoutBuffer = nullptr;  //!< Cumulative CU count stream out buffer
     PMOS_RESOURCE m_vdencIntraRowStoreScratch           = nullptr;
@@ -322,9 +340,19 @@ protected:
 
     MHW_SETPAR_DECL_HDR(AVP_PIPE_BUF_ADDR_STATE);
 
+    MHW_SETPAR_DECL_HDR(AVP_IND_OBJ_BASE_ADDR_STATE);
+
+    MHW_SETPAR_DECL_HDR(AVP_PIC_STATE);
+
+    MHW_SETPAR_DECL_HDR(AVP_TILE_CODING);
+
     virtual MOS_STATUS AddAllCmds_AVP_SURFACE_STATE(PMOS_COMMAND_BUFFER cmdBuffer) const;
 
     virtual MOS_STATUS AddAllCmds_AVP_PAK_INSERT_OBJECT(PMOS_COMMAND_BUFFER cmdBuffer) const;
+
+    virtual MOS_STATUS AddAllCmds_AVP_PIPE_MODE_SELECT(PMOS_COMMAND_BUFFER cmdBuffer) const;
+
+    virtual MOS_STATUS AddAllCmds_AVP_SEGMENT_STATE(PMOS_COMMAND_BUFFER cmdBuffer) const;
 
     virtual MOS_STATUS GetVdencStateCommandsDataSize(uint32_t *commandsSize, uint32_t *patchListSize) const;
 

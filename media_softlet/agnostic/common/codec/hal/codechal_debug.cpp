@@ -2289,6 +2289,8 @@ CodechalDebugInterface::CodechalDebugInterface()
         const char *fileName;
         bool        binaryDump = false;
         if ((!strcmp(attrName, MediaDbgAttr::attrDecodeBitstream)) ||
+            (!strcmp(attrName, MediaDbgAttr::attrStreamIn)) ||
+            (!strcmp(attrName, MediaDbgAttr::attrStreamOut)) ||
             (!strcmp(attrName, MediaDbgAttr::attrMvData)) ||
             (!strcmp(attrName, MediaDbgAttr::attrSegId)) ||
             (!strcmp(attrName, MediaDbgAttr::attrCoefProb)) ||
@@ -2419,6 +2421,8 @@ CodechalDebugInterface::CodechalDebugInterface()
         const char *fileName;
         bool        binaryDump = false;
         if ((!strcmp(attrName, MediaDbgAttr::attrDecodeBitstream)) ||
+            (!strcmp(attrName, MediaDbgAttr::attrStreamIn)) ||
+            (!strcmp(attrName, MediaDbgAttr::attrStreamOut)) ||
             (!strcmp(attrName, MediaDbgAttr::attrMvData)) ||
             (!strcmp(attrName, MediaDbgAttr::attrSegId)) ||
             (!strcmp(attrName, MediaDbgAttr::attrCoefProb)) ||
@@ -3792,7 +3796,7 @@ MOS_STATUS CodechalDebugInterface::Dump2ndLvlBatch(
         }
         CODECHAL_DEBUG_CHK_NULL(data);
 
-        if (DumpIsEnabled(MediaDbgAttr::attrEnableFastDump))
+        if (DumpIsEnabled(MediaDbgAttr::attrEnableFastDump) && MediaDebugFastDump::IsGood())
         {
             MediaDebugFastDump::Dump(
                 data + batchBuffer->dwOffset,
@@ -3823,7 +3827,7 @@ MOS_STATUS CodechalDebugInterface::Dump2ndLvlBatch(
 
         batchBuffer->pData += batchBuffer->dwOffset;
 
-        if (DumpIsEnabled(MediaDbgAttr::attrEnableFastDump))
+        if (DumpIsEnabled(MediaDbgAttr::attrEnableFastDump) && MediaDebugFastDump::IsGood())
         {
             MediaDebugFastDump::Dump(
                 batchBuffer->pData,

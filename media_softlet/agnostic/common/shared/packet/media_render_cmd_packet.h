@@ -80,6 +80,15 @@ class MhwCpInterface;
         (MhwKernelParam).iKCID    = (_pKernelEntry)->iKCID;                         \
     } while(0)
 
+typedef struct _PIPECONTRL_PARAMS
+{
+    bool bUpdateNeeded;
+    bool bEnableDataPortFlush;
+    bool bUnTypedDataPortCacheFlush;
+    bool bFlushRenderTargetCache;
+    bool bInvalidateTextureCache;
+} PIPECONTRL_PARAMS, *PPIPECONTRL_PARAMS;
+
 typedef struct _KERNEL_WALKER_PARAMS
 {
     int32_t                             iBindingTable;
@@ -90,12 +99,25 @@ typedef struct _KERNEL_WALKER_PARAMS
     int32_t                             iBlocksX;
     int32_t                             iBlocksY;
     RECT                                alignedRect;
+    PIPECONTRL_PARAMS                   pipeControlParams;
     bool                                isVerticalPattern;
     bool                                bSyncFlag;
     bool                                bFlushL1;
     bool                                isGroupStartInvolvedInGroupSize;    // true if group start need be involved in the group size.
     bool                                calculateBlockXYByAlignedRect;      // true if iBlocksX/iBlocksY is calculated by alignedRect in RenderCmdPacket instead of kernel object.
     bool                                forcePreferredSLMZero;              // true if preferredSLM need force to 0.
+
+    bool                                isEmitInlineParameter;
+    uint32_t                            inlineDataLength;
+    uint8_t*                            inlineData;
+
+    uint32_t                            threadWidth;
+    uint32_t                            threadHeight;
+    uint32_t                            threadDepth;
+
+    bool                                isGenerateLocalID;
+    MHW_EMIT_LOCAL_MODE                 emitLocal;
+    
 }KERNEL_WALKER_PARAMS, * PKERNEL_WALKER_PARAMS;
 
 typedef struct _KERNEL_PACKET_RENDER_DATA
