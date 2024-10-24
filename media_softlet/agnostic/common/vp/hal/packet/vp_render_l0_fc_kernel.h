@@ -24,7 +24,6 @@
 
 #include "vp_platform_interface.h"
 #include "vp_render_kernel_obj.h"
-#include "vp_render_cmd_packet.h"
 
 namespace vp
 {
@@ -44,29 +43,40 @@ public:
     virtual MOS_STATUS SetSamplerStates(KERNEL_SAMPLER_STATE_GROUP &samplerStateGroup);
     virtual MOS_STATUS GetWalkerSetting(KERNEL_WALKER_PARAMS &walkerParam, KERNEL_PACKET_RENDER_DATA &renderData);
 
+    virtual MOS_STATUS SetKernelConfigs(KERNEL_CONFIGS &kernelConfigs) override;
+    virtual MOS_STATUS SetPerfTag() override;
+
     MOS_STATUS FreeCurbe(void *&curbe)
     {
         return MOS_STATUS_SUCCESS;
+    }
+
+    virtual bool IsKernelCached() override
+    {
+        return true;
     }
 
 protected:
     virtual MOS_STATUS SetupSurfaceState() override;
     virtual MOS_STATUS SetWalkerSetting(KERNEL_THREAD_SPACE &threadSpace, bool bSyncFlag, bool flushL1 = false);
     virtual MOS_STATUS SetKernelArgs(KERNEL_ARGS &kernelArgs, VP_PACKET_SHARED_CONTEXT *sharedContext);
+    virtual MOS_STATUS SetKernelStatefulSurfaces(KERNEL_ARG_INDEX_SURFACE_MAP &statefulSurfaces) override;
 
     PRENDERHAL_INTERFACE m_renderHal      = nullptr;
 
     //kernel Arguments
-    KERNEL_ARGS                  m_kernelArgs      = {};
-    KERNEL_BTIS                  m_kernelBtis      = {};
-    KRN_EXECUTE_ENV              m_kernelEnv       = {};
-    KERNEL_WALKER_PARAMS         m_walkerParam     = {};
-    void                        *m_curbe           = nullptr;
-    uint32_t                     m_layer           = 0;
-    uint32_t                     m_curbeSize       = 0;
-    uint32_t                     m_samplerIndex    = 0;
-    std ::vector<uint8_t>        m_inlineData      = {};
-    KERNEL_ARG_INDEX_SURFACE_MAP m_argIndexSurfMap = {};
+    KERNEL_INDEX_ARG_MAP         m_kernelArgs          = {};
+    KERNEL_BTIS                  m_kernelBtis          = {};
+    KRN_EXECUTE_ENV              m_kernelEnv           = {};
+    KERNEL_WALKER_PARAMS         m_walkerParam         = {};
+    void                        *m_curbe               = nullptr;
+    uint32_t                     m_kernelIndex         = 0;
+    uint32_t                     m_curbeSize           = 0;
+    int32_t                      m_linearSamplerIndex  = -1;
+    int32_t                      m_nearestSamplerIndex = -1;
+    std ::vector<uint8_t>        m_inlineData          = {};
+    L0_FC_KERNEL_CONFIG          m_kernelConfig        = {};
+    KERNEL_ARG_INDEX_SURFACE_MAP m_argIndexSurfMap     = {};
 
 MEDIA_CLASS_DEFINE_END(vp__VpRenderL0FcKernel)
 };

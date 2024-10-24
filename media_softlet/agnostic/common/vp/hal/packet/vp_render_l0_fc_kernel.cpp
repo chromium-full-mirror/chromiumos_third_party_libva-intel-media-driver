@@ -31,13 +31,19 @@ using namespace vp;
 
 VpRenderL0FcKernel::VpRenderL0FcKernel(PVP_MHWINTERFACE hwInterface, VpKernelID kernelID, uint32_t kernelIndex, PVpAllocator allocator) : VpRenderKernelObj(hwInterface, kernelID, kernelIndex, "", allocator)
 {
-    m_renderHal = hwInterface ? hwInterface->m_renderHal : nullptr;
-    m_layer     = kernelIndex;
+    m_renderHal   = hwInterface ? hwInterface->m_renderHal : nullptr;
+    m_kernelIndex = kernelIndex;
 
     switch (kernelID)
     {
-    case kernelFcDScale444:
-        m_kernelName = "PA_444D_fc_scale";
+    case kernelL0FcCommon:
+        m_kernelName = "FastComp_fc_common";
+        break;
+    case kernelL0FcFP:
+        m_kernelName = "FastExpress_fc_fp";
+        break;
+    case kernelL0Fc444PL3Input:
+        m_kernelName = "ImageRead_fc_444PL3_input";
         break;
     default:
         m_kernelName.assign("");
@@ -68,11 +74,11 @@ MOS_STATUS VpRenderL0FcKernel::Init(VpRenderKernel &kernel)
 
     m_kernelBinary = pKernelBin + kernel.GetKernelBinOffset();
 
-    m_kernelArgs = kernel.GetKernelArgs();
-
-    for (auto arg : m_kernelArgs)
+    m_kernelArgs.clear();
+    for (auto &arg : kernel.GetKernelArgs())
     {
         arg.pData = nullptr;
+        m_kernelArgs.insert(std::make_pair(arg.uIndex,arg));
     }
 
     m_kernelBtis = kernel.GetKernelBtis();
@@ -93,20 +99,44 @@ MOS_STATUS VpRenderL0FcKernel::SetSamplerStates(KERNEL_SAMPLER_STATE_GROUP &samp
     if (m_kernelEnv.bHasSample)
     {
         samplerStateGroup.clear();
+
         MHW_SAMPLER_STATE_PARAM samplerStateParam = {};
-
         samplerStateParam.Unorm.SamplerFilterMode = MHW_SAMPLER_FILTER_BILINEAR;
-        samplerStateParam.Unorm.MagFilter = MHW_GFX3DSTATE_MAPFILTER_LINEAR;
-        samplerStateParam.Unorm.MinFilter = MHW_GFX3DSTATE_MAPFILTER_LINEAR;
+        samplerStateParam.Unorm.MagFilter         = MHW_GFX3DSTATE_MAPFILTER_LINEAR;
+        samplerStateParam.Unorm.MinFilter         = MHW_GFX3DSTATE_MAPFILTER_LINEAR;
+        samplerStateParam.Unorm.AddressU          = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
+        samplerStateParam.Unorm.AddressV          = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
+        samplerStateParam.Unorm.AddressW          = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
+        samplerStateParam.bInUse                  = true;
+        samplerStateParam.SamplerType             = MHW_SAMPLER_TYPE_3D;
+        if (m_linearSamplerIndex >= 0)
+        {
+            VP_RENDER_NORMALMESSAGE("Bilinear Sampler Set on Sampler Index %d", m_linearSamplerIndex);
+            samplerStateGroup.insert(std::make_pair(m_linearSamplerIndex, samplerStateParam));
+        }
+        else
+        {
+            VP_RENDER_NORMALMESSAGE("Bilinear Sampler NOT SET for Invalid Index %d", m_linearSamplerIndex);
+        }
 
-        samplerStateParam.Unorm.AddressU = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
-        samplerStateParam.Unorm.AddressV = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
-        samplerStateParam.Unorm.AddressW = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
-
-        samplerStateParam.bInUse      = true;
-        samplerStateParam.SamplerType = MHW_SAMPLER_TYPE_3D;
-
-        samplerStateGroup.insert(std::make_pair(m_samplerIndex, samplerStateParam));
+        samplerStateParam = {};
+        samplerStateParam.Unorm.SamplerFilterMode = MHW_SAMPLER_FILTER_NEAREST;
+        samplerStateParam.Unorm.MagFilter         = MHW_GFX3DSTATE_MAPFILTER_NEAREST;
+        samplerStateParam.Unorm.MinFilter         = MHW_GFX3DSTATE_MAPFILTER_NEAREST;
+        samplerStateParam.Unorm.AddressU          = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
+        samplerStateParam.Unorm.AddressV          = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
+        samplerStateParam.Unorm.AddressW          = MHW_GFX3DSTATE_TEXCOORDMODE_CLAMP;
+        samplerStateParam.bInUse                  = true;
+        samplerStateParam.SamplerType             = MHW_SAMPLER_TYPE_3D;
+        if (m_nearestSamplerIndex >= 0)
+        {
+            VP_RENDER_NORMALMESSAGE("Nearest Sampler Set on Sampler Index %d", m_nearestSamplerIndex);
+            samplerStateGroup.insert(std::make_pair(m_nearestSamplerIndex, samplerStateParam));
+        }
+        else
+        {
+            VP_RENDER_NORMALMESSAGE("Nearest Sampler NOT SET for Invalid Index %d", m_nearestSamplerIndex);
+        }
     }
 
     return MOS_STATUS_SUCCESS;
@@ -119,45 +149,54 @@ MOS_STATUS VpRenderL0FcKernel::SetKernelArgs(KERNEL_ARGS &kernelArgs, VP_PACKET_
     //All pData will be free in VpL0FcFilter::Destroy so no need to free here
     for (KRN_ARG &srcArg : kernelArgs)
     {
-        for (KRN_ARG &dstArg : m_kernelArgs)
+        auto handle = m_kernelArgs.find(srcArg.uIndex);
+
+        if (srcArg.eArgKind == ARG_KIND_GENERAL || srcArg.eArgKind == ARG_KIND_INLINE)
         {
-            if (srcArg.uIndex == dstArg.uIndex)
+            if (handle != m_kernelArgs.end())
             {
-                if (dstArg.eArgKind == ARG_KIND_GENERAL || dstArg.eArgKind == ARG_KIND_INLINE)
+                KRN_ARG &dstArg = handle->second;
+                if (srcArg.pData == nullptr)
                 {
-                    if (srcArg.pData == nullptr)
-                    {
-                        VP_RENDER_ASSERTMESSAGE("The Kernel Argument General Data is null! KernelID %d, argIndex %d", m_kernelId, dstArg.uIndex);
-                        return MOS_STATUS_INVALID_PARAMETER;
-                    }
-                    else
-                    {
-                        dstArg.eArgKind = srcArg.eArgKind;
-                        dstArg.pData    = srcArg.pData;
-                        srcArg.pData    = nullptr;
-                    }
+                    VP_RENDER_ASSERTMESSAGE("The Kernel Argument General Data is null! KernelID %d, argIndex %d", m_kernelId, dstArg.uIndex);
+                    return MOS_STATUS_INVALID_PARAMETER;
                 }
-                else if (dstArg.eArgKind == ARG_KIND_SAMPLER)
+                else
                 {
-                    m_samplerIndex = dstArg.uOffsetInPayload;
+                    dstArg.eArgKind = srcArg.eArgKind;
+                    dstArg.pData    = srcArg.pData;
+                    srcArg.pData    = nullptr;
                 }
             }
         }
-
-        if (srcArg.eArgKind == ARG_KIND_SURFACE)
+        else if (srcArg.eArgKind == ARG_KIND_SAMPLER)
         {
-            if (srcArg.pData == nullptr)
+            if (handle != m_kernelArgs.end())
             {
-                VP_RENDER_ASSERTMESSAGE("The Kernel Argument Surface is null! KernelID %d, argIndex %d", m_kernelId, srcArg.uIndex);
-                return MOS_STATUS_INVALID_PARAMETER;
-            }
-            else
-            {
-                SURFACE_PARAMS surfaceParams;
-                surfaceParams.isOutput = srcArg.isOutput;
-                surfaceParams.surfType = *(SurfaceType *)srcArg.pData;
-                m_argIndexSurfMap.insert(std::make_pair(srcArg.uIndex, surfaceParams));
-                srcArg.pData = nullptr;
+                KRN_ARG &dstArg = handle->second;
+                if (srcArg.pData == nullptr)
+                {
+                    VP_RENDER_ASSERTMESSAGE("The Kernel Argument Sampler Data is null! KernelID %d, argIndex %d", m_kernelId, dstArg.uIndex);
+                    return MOS_STATUS_INVALID_PARAMETER;
+                }
+                else
+                {
+                    if (*(uint32_t *)srcArg.pData == MHW_SAMPLER_FILTER_BILINEAR)
+                    {
+                        m_linearSamplerIndex = dstArg.uOffsetInPayload;
+                        srcArg.pData         = nullptr;
+                    }
+                    else if (*(uint32_t *)srcArg.pData == MHW_SAMPLER_FILTER_NEAREST)
+                    {
+                        m_nearestSamplerIndex = dstArg.uOffsetInPayload;
+                        srcArg.pData          = nullptr;
+                    }
+                    else
+                    {
+                        VP_RENDER_ASSERTMESSAGE("The Kernel Argument Sampler Data is INVALID TYPE! KernelID %d, argIndex %d, type %d", m_kernelId, dstArg.uIndex, *(uint32_t *)srcArg.pData);
+                        return MOS_STATUS_INVALID_PARAMETER;
+                    }
+                }
             }
         }
 
@@ -168,6 +207,12 @@ MOS_STATUS VpRenderL0FcKernel::SetKernelArgs(KERNEL_ARGS &kernelArgs, VP_PACKET_
         }
     }
 
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS VpRenderL0FcKernel::SetKernelStatefulSurfaces(KERNEL_ARG_INDEX_SURFACE_MAP& statefulSurfaces)
+{
+    m_argIndexSurfMap = statefulSurfaces;
     return MOS_STATUS_SUCCESS;
 }
 
@@ -188,8 +233,9 @@ MOS_STATUS VpRenderL0FcKernel::GetCurbeState(void *&curbe, uint32_t &curbeLength
     MOS_FreeMemAndSetNull(m_curbe);
     m_curbe = pCurbe;
 
-    for (auto &arg : m_kernelArgs)
+    for (auto &handle : m_kernelArgs)
     {
+        KRN_ARG &arg = handle.second;
         switch (arg.eArgKind)
         {
         case ARG_KIND_GENERAL:
@@ -214,8 +260,6 @@ MOS_STATUS VpRenderL0FcKernel::GetCurbeState(void *&curbe, uint32_t &curbeLength
 
     curbe = pCurbe;
 
-    PrintCurbe(pCurbe, curbeLength);
-
     return MOS_STATUS_SUCCESS;
 }
 
@@ -224,13 +268,13 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
     VP_FUNC_CALL();
 
     KERNEL_SURFACE_STATE_PARAM kernelSurfaceParam;
-
+    m_surfaceState.clear();
     for (auto it = m_kernelBtis.begin(); it != m_kernelBtis.end(); ++it)
     {
         uint32_t argIndex = it->first;
         uint32_t bti      = it->second;
 
-        VP_RENDER_NORMALMESSAGE("Setting Surface State for L0 FC. KernelID %d, layer %d, argIndex %d , bti %d", m_kernelId, m_layer, argIndex, bti);
+        VP_RENDER_NORMALMESSAGE("Setting Surface State for L0 FC. KernelID %d, layer %d, argIndex %d , bti %d", m_kernelId, m_kernelIndex, argIndex, bti);
 
         MOS_ZeroMemory(&kernelSurfaceParam, sizeof(KERNEL_SURFACE_STATE_PARAM));
         kernelSurfaceParam.surfaceOverwriteParams.updatedRenderSurfaces = true;
@@ -238,11 +282,17 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
         PRENDERHAL_SURFACE_STATE_PARAMS pRenderSurfaceParams            = &kernelSurfaceParam.surfaceOverwriteParams.renderSurfaceParams;
         pRenderSurfaceParams->bAVS                                      = false;
         pRenderSurfaceParams->Boundary                                  = RENDERHAL_SS_BOUNDARY_ORIGINAL;
+        pRenderSurfaceParams->b2PlaneNV12NeededByKernel                 = true;
+        pRenderSurfaceParams->forceCommonSurfaceMessage                 = true;
         SurfaceType         surfType                                    = SurfaceTypeInvalid;
         MOS_HW_RESOURCE_DEF resourceType                                = MOS_HW_RESOURCE_USAGE_VP_INTERNAL_READ_WRITE_RENDER;
 
         auto surfHandle = m_argIndexSurfMap.find(argIndex);
         VP_PUBLIC_CHK_NOT_FOUND_RETURN(surfHandle, &m_argIndexSurfMap);
+        if (surfHandle->second.combineChannelY)
+        {
+            pRenderSurfaceParams->combineChannelY = true;
+        }
         surfType = surfHandle->second.surfType;
         if (surfType == SurfaceTypeInvalid)
         {
@@ -263,18 +313,56 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
         }
         VP_RENDER_CHK_NULL_RETURN(surf->second);
         VP_RENDER_CHK_NULL_RETURN(surf->second->osSurface);
-        kernelSurfaceParam.surfaceOverwriteParams.updatedSurfaceParams = true;
-        kernelSurfaceParam.surfaceOverwriteParams.format = surf->second->osSurface->Format;
-        kernelSurfaceParam.surfaceOverwriteParams.width  = MOS_MIN(surf->second->osSurface->dwWidth, static_cast<uint64_t>(surf->second->rcSrc.right));
-        kernelSurfaceParam.surfaceOverwriteParams.height = MOS_MIN(surf->second->osSurface->dwHeight, static_cast<uint64_t>(surf->second->rcSrc.bottom));
 
         pRenderSurfaceParams->MemObjCtl = (m_renderHal->pOsInterface->pfnCachePolicyGetMemoryObject(
                                                resourceType,
                                                m_renderHal->pOsInterface->pfnGetGmmClientContext(m_renderHal->pOsInterface)))
                                               .DwordValue;
-        pRenderSurfaceParams->Component   = COMPONENT_VPCommon;
+        pRenderSurfaceParams->Component = COMPONENT_VPCommon;
+        
+        if (m_kernelId == kernelL0FcCommon ||
+            m_kernelId == kernelL0FcFP)
+        {
+            kernelSurfaceParam.surfaceOverwriteParams.updatedSurfaceParams = true;
+            kernelSurfaceParam.surfaceOverwriteParams.format               = surf->second->osSurface->Format;
+            kernelSurfaceParam.surfaceOverwriteParams.width                = MOS_MIN(static_cast<uint16_t>(surf->second->osSurface->dwWidth), static_cast<uint16_t>(surf->second->rcSrc.right));
+            kernelSurfaceParam.surfaceOverwriteParams.height               = MOS_MIN(static_cast<uint16_t>(surf->second->osSurface->dwHeight), static_cast<uint16_t>(surf->second->rcSrc.bottom));
+        }
+        
+        if (surfHandle->second.needVerticalStirde)
+        {
+            switch (surf->second->SampleType)
+            {
+            case SAMPLE_INTERLEAVED_EVEN_FIRST_TOP_FIELD:
+            case SAMPLE_INTERLEAVED_ODD_FIRST_TOP_FIELD:
+                pRenderSurfaceParams->bVertStride     = true;
+                pRenderSurfaceParams->bVertStrideOffs = 0;
+                break;
+            case SAMPLE_INTERLEAVED_EVEN_FIRST_BOTTOM_FIELD:
+            case SAMPLE_INTERLEAVED_ODD_FIRST_BOTTOM_FIELD:
+                pRenderSurfaceParams->bVertStride     = true;
+                pRenderSurfaceParams->bVertStrideOffs = 1;
+                break;
+            default:
+                pRenderSurfaceParams->bVertStride     = false;
+                pRenderSurfaceParams->bVertStrideOffs = 0;
+                break;
+            }
+        }
 
-        if (surf->second->osSurface->Type == MOS_GFXRES_BUFFER)
+        if (surf->second->SurfType == SURF_OUT_RENDERTARGET &&
+           (surf->second->osSurface->Format == Format_YUY2 ||
+            surf->second->osSurface->Format == Format_Y210 ||
+            surf->second->osSurface->Format == Format_Y216 ||
+            surf->second->osSurface->Format == Format_YUYV ||
+            surf->second->osSurface->Format == Format_YVYU ||
+            surf->second->osSurface->Format == Format_UYVY ||
+            surf->second->osSurface->Format == Format_VYUY))
+        {
+            pRenderSurfaceParams->bWidthInDword_Y = true;
+        }
+
+        if (surf->second->osSurface->Format == Format_Buffer)
         {
             kernelSurfaceParam.surfaceOverwriteParams.updatedSurfaceParams = true;
             kernelSurfaceParam.surfaceOverwriteParams.bufferResource       = true;
@@ -325,8 +413,9 @@ MOS_STATUS VpRenderL0FcKernel::SetWalkerSetting(KERNEL_THREAD_SPACE &threadSpace
     m_walkerParam.pipeControlParams.bFlushRenderTargetCache    = false;
     m_walkerParam.pipeControlParams.bInvalidateTextureCache    = false;
 
-    for (auto &arg : m_kernelArgs)
+    for (auto &handle : m_kernelArgs)
     {
+        KRN_ARG &arg = handle.second;
         if (arg.eArgKind == ARG_KIND_INLINE)
         {
             if (arg.pData != nullptr)
@@ -342,16 +431,42 @@ MOS_STATUS VpRenderL0FcKernel::SetWalkerSetting(KERNEL_THREAD_SPACE &threadSpace
     }
     m_walkerParam.inlineDataLength = m_inlineData.size();
     m_walkerParam.inlineData       = m_inlineData.data();
+
+    m_walkerParam.slmSize    = m_kernelEnv.uiSlmSize;
+    m_walkerParam.hasBarrier = (m_kernelEnv.uBarrierCount > 0);
     
-    if (m_kernelEnv.uSimdSize != 1 &&
-        (m_kernelEnv.uiWorkGroupWalkOrderDimensions[0] != 0 || 
-         m_kernelEnv.uiWorkGroupWalkOrderDimensions[1] != 0 || 
-         m_kernelEnv.uiWorkGroupWalkOrderDimensions[2] != 0))
+    if (m_kernelEnv.uSimdSize != 1)
     {
         m_walkerParam.isEmitInlineParameter = true;
         m_walkerParam.isGenerateLocalID     = true;
         m_walkerParam.emitLocal             = MHW_EMIT_LOCAL_XYZ;
     }
 
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS VpRenderL0FcKernel::SetKernelConfigs(KERNEL_CONFIGS& kernelConfigs)
+{
+    VP_FUNC_CALL();
+
+    auto handle = kernelConfigs.find(m_kernelId);
+    VP_PUBLIC_CHK_NOT_FOUND_RETURN(handle, &kernelConfigs);
+    
+    L0_FC_KERNEL_CONFIG *kernelConfig = (L0_FC_KERNEL_CONFIG *)handle->second;
+    VP_PUBLIC_CHK_NULL_RETURN(kernelConfig);
+
+    m_kernelConfig = *kernelConfig;
+
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS VpRenderL0FcKernel::SetPerfTag()
+{
+    auto pOsInterface = m_hwInterface->m_osInterface;
+    VP_RENDER_CHK_NULL_RETURN(pOsInterface);
+    VP_RENDER_CHK_NULL_RETURN(pOsInterface->pfnSetPerfTag);
+
+    pOsInterface->pfnSetPerfTag(pOsInterface, m_kernelConfig.perfTag);
+    
     return MOS_STATUS_SUCCESS;
 }

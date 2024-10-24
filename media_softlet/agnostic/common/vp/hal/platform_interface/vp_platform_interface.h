@@ -406,7 +406,7 @@ public:
 
     void DisableRender();
 
-    virtual int GetModelConfig(int eu, int width, int height)
+    virtual int GetModelConfig(int eu, int width, int height, double fps)
     {
         return 0;
     };
@@ -414,6 +414,11 @@ public:
     virtual MOS_STATUS InitFrameTracker()
     {
         return MOS_STATUS_SUCCESS;
+    }
+
+    virtual bool SupportL0FC()
+    {
+        return false;
     }
 
 protected:

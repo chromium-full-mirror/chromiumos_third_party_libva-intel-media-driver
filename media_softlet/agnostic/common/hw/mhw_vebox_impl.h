@@ -429,7 +429,8 @@ public:
             // The condition below is valid when sync tag wraps from 2^32-1 to 0
             if (((int32_t)(dwCurrentTag - pCurInstance->dwSyncTag) >= 0) ||
                 NullRenderingFlags.VPGobal ||
-                NullRenderingFlags.VPDnDi)
+                NullRenderingFlags.VPDnDi  ||
+                this->m_osItf->bNullHwIsEnabled)
             {
                 pCurInstance->bBusy = false;
             }
@@ -463,6 +464,12 @@ public:
     }
 
     MOS_STATUS SetDisableHistogram(
+        PMHW_VEBOX_IECP_PARAMS pVeboxIecpParams) override
+    {
+        return MOS_STATUS_SUCCESS;
+    }
+
+    MOS_STATUS SetAlphaFromStateSelect(
         PMHW_VEBOX_IECP_PARAMS pVeboxIecpParams) override
     {
         return MOS_STATUS_SUCCESS;
@@ -936,11 +943,6 @@ public:
     }
 
     MOS_STATUS Add1DLutState(void *&surface, PMHW_1DLUT_PARAMS p1DLutParams) override
-    {
-        return MOS_STATUS_SUCCESS;
-    }
-
-    MOS_STATUS AddEOTFState(void *&surface, PMHW_1DLUT_PARAMS p1DLutParams) override
     {
         return MOS_STATUS_SUCCESS;
     }

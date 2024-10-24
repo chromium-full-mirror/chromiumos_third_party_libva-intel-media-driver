@@ -25,3 +25,11 @@ endif()
 if(ARL)
     media_include_subdirectory(media_interfaces_arl)
 endif()
+
+if(LNL)
+    media_include_subdirectory(media_interfaces_lnl)
+endif()
+
+if(BMG)
+    media_include_subdirectory(media_interfaces_bmg)
+endif()

@@ -28,6 +28,12 @@ set(TMP_SOURCES_
     ${CMAKE_CURRENT_LIST_DIR}/encode_av1_stream_in.cpp
     ${CMAKE_CURRENT_LIST_DIR}/encode_av1_brc.cpp
     ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_lpla_enc.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_preenc.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_fullenc.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_superres.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_aqm.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_scc.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_fastpass.cpp
 )
 
 set(TMP_HEADERS_
@@ -40,6 +46,12 @@ set(TMP_HEADERS_
     ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_feature_defs.h
     ${CMAKE_CURRENT_LIST_DIR}/encode_av1_brc.h
     ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_lpla_enc.h
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_preenc.h
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_vdenc_fullenc.h
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_superres.h
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_aqm.h
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_scc.h
+    ${CMAKE_CURRENT_LIST_DIR}/encode_av1_fastpass.h
 )
 
 set(SOFTLET_ENCODE_AV1_HEADERS_

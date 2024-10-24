@@ -1,4 +1,4 @@
-# Copyright (c) 2017-2023, Intel Corporation
+# Copyright (c) 2017-2024, Intel Corporation
 #
 # Permission is hereby granted, free of charge, to any person obtaining a
 # copy of this software and associated documentation files (the "Software"),
@@ -112,8 +112,28 @@ if(MTL)
     option(XE_LPG "Enable XE_LPG support" ON)
 endif()
 
-if(MTL)
+option(BMG "Enable BMG support" ON)
+
+if(MTL OR BMG)
     option(Xe_M_plus "Enable Xe_M_plus support" ON)
+endif()
+
+option(LNL "Enable LNL support" ON)
+
+if(LNL)
+    option(XE2_LPM_SUPPORT "Enable XE2_LPM support" ON)
+endif()
+
+if(LNL OR BMG)
+    option(XE2_HPG "Enable XE2_HPG support" ON)
+endif()
+
+if(LNL)
+    option(Xe2_M_plus "Enable Xe2_M_plus support" ON)
+endif()
+
+if(BMG)
+    option(XE2_HPM_SUPPORT "Enable XE2_HPM support" ON)
 endif()
 
 if(GEN8)
@@ -224,6 +244,15 @@ endif()
 
 if(ARL)
     add_definitions(-DIGFX_ARL_SUPPORTED)
+endif()
+
+if(XE2_HPG)
+    add_definitions(-DIGFX_XE2_HPG_SUPPORTED)
+    add_definitions(-DIGFX_XE2_HPG_CMFCPATCH_SUPPORTED)
+endif()
+
+if(LNL)
+    add_definitions(-DIGFX_LNL_SUPPORTED)
 endif()
 
 include(${MEDIA_EXT_CMAKE}/ext/linux/media_gen_flags_linux_ext.cmake OPTIONAL)

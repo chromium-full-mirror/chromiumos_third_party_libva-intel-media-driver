@@ -1944,7 +1944,7 @@ MOS_STATUS MosInterface::GetResourceInfo(
     details.CompressionMode = (MOS_RESOURCE_MMC_MODE)gmmResourceInfo->GetMmcMode(0);
 
     auto skuTable = MosInterface::GetSkuTable(streamState);
-    if(skuTable && MEDIA_IS_SKU(skuTable, FtrNewCompression))
+    if(skuTable && MEDIA_IS_SKU(skuTable, FtrXe2Compression))
     {
         if (gmmResourceInfo->GetResFlags().Info.MediaCompressed == 1)
         {
@@ -2391,7 +2391,7 @@ MOS_STATUS MosInterface::GetMemoryCompressionMode(
     MOS_OS_CHK_NULL_RETURN(MosInterface::GetGmmClientContext(streamState));
     MOS_OS_CHK_NULL_RETURN(skuTable);
 
-    if (MEDIA_IS_SKU(skuTable, FtrNewCompression))
+    if (MEDIA_IS_SKU(skuTable, FtrXe2Compression))
     {
         // reusing MC to mark all media engins to turn on compression
         if (resource->pGmmResInfo->GetResFlags().Info.MediaCompressed == 1)
@@ -3820,6 +3820,7 @@ MOS_FORMAT MosInterface::GmmFmtToMosFmt(
         {GMM_FORMAT_R16G16B16A16_UNORM_TYPE, Format_A16B16G16R16},
         {GMM_FORMAT_R16G16B16A16_FLOAT_TYPE, Format_A16B16G16R16F},
         {GMM_FORMAT_R10G10B10A2_UNORM_TYPE, Format_R10G10B10A2},
+        {GMM_FORMAT_B10G10R10A2_UNORM_TYPE, Format_B10G10R10A2},
         {GMM_FORMAT_MFX_JPEG_YUV422H_TYPE, Format_422H},
         {GMM_FORMAT_MFX_JPEG_YUV411_TYPE, Format_411P},
         {GMM_FORMAT_MFX_JPEG_YUV422V_TYPE, Format_422V},
@@ -3902,6 +3903,7 @@ GMM_RESOURCE_FORMAT MosInterface::MosFmtToGmmFmt(MOS_FORMAT format)
         {Format_Y210,           GMM_FORMAT_Y210_TYPE},
         {Format_Y410,           GMM_FORMAT_Y410_TYPE},
         {Format_R10G10B10A2,    GMM_FORMAT_R10G10B10A2_UNORM_TYPE},
+        {Format_B10G10R10A2,    GMM_FORMAT_B10G10R10A2_UNORM_TYPE},
         {Format_A16B16G16R16F,  GMM_FORMAT_R16G16B16A16_FLOAT},
         {Format_R32G32B32A32F,  GMM_FORMAT_R32G32B32A32_FLOAT}
     };

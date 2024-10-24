@@ -108,7 +108,9 @@ MOS_STATUS RenderCopyState::Initialize()
     RenderHalSettings.iMediaStates = 32;
     MCPY_CHK_STATUS_RETURN(m_renderHal->pfnInitialize(m_renderHal, &RenderHalSettings));
 
-    m_renderHal->sseuTable = VpDefaultSSEUTable;
+    m_renderHal->sseuTable              = VpDefaultSSEUTable;
+    m_renderHal->forceDisablePreemption = true;
+
     return MOS_STATUS_SUCCESS;
 }
 
@@ -252,7 +254,8 @@ MOS_STATUS RenderCopyState::SetupSurfaceStates()
     int32_t                         iBTEntry;
     PRENDERHAL_INTERFACE            pRenderHal  = m_renderHal;
     PMEDIACOPY_RENDER_DATA          pRenderData = &m_RenderData;
-
+    RENDERHAL_SURFACE               RenderHalSource = {};  // source for mhw
+    RENDERHAL_SURFACE               RenderHalTarget = {};  // target for mhw
     MCPY_CHK_NULL_RETURN(pRenderHal);
     MCPY_CHK_NULL_RETURN(pRenderData);
     // Source surface

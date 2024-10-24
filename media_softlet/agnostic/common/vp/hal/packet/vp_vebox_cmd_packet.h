@@ -302,6 +302,7 @@ typedef struct _VEBOX_PACKET_SURFACE_PARAMS
     VP_SURFACE                      *pLaceOrAceOrRgbHistogram;
     VP_SURFACE                      *pSurfSkinScoreOutput;
     VP_SURFACE                      *pFMDHistorySurface;
+    VP_SURFACE                      *pInnerTileConvertInput;
 }VEBOX_PACKET_SURFACE_PARAMS, *PVEBOX_PACKET_SURFACE_PARAMS;
 };
 
@@ -921,6 +922,16 @@ public:
         uint32_t *pStatSlice0GNEPtr,
         uint32_t *pStatSlice1GNEPtr);
 
+    MOS_STATUS InitVeboxSurfaceStateCmdParamsForTileConvert(
+        PMHW_VEBOX_SURFACE_STATE_CMD_PARAMS mhwVeboxSurfaceStateCmdParams,
+        PMOS_SURFACE                        inputSurface,
+        PMOS_SURFACE                        outputSurface);
+
+    MOS_STATUS AddTileConvertStates(
+        MOS_COMMAND_BUFFER *CmdBuffer,
+        MHW_VEBOX_SURFACE_STATE_CMD_PARAMS &MhwVeboxSurfaceStateCmdParams);
+
+    MOS_FORMAT AdjustFormatForTileConvert(MOS_FORMAT format);
     // TGNE
     uint32_t dwGlobalNoiseLevel_Temporal  = 0;  //!< Global Temporal Noise Level for Y
     uint32_t dwGlobalNoiseLevelU_Temporal = 0;  //!< Global Temporal Noise Level for U
@@ -1123,8 +1134,17 @@ protected:
         mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
     virtual MOS_STATUS Init3DLutTable(PVP_SURFACE surf3DLut);
     void    UpdateCpPrepareResources();
+    virtual MOS_STATUS Add1DLutState(PVP_SURFACE &surface, PMHW_1DLUT_PARAMS p1DLutParams);
     virtual MOS_STATUS SetupVebox3DLutForHDR(
         mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
+    virtual MOS_STATUS SetupVeboxFP16State(mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams)
+    {
+        return MOS_STATUS_SUCCESS;
+    }
+
+    virtual MOS_STATUS SetupHDRUnifiedForHDR(
+        mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
+
     virtual MOS_STATUS SetupVeboxExternal3DLutforHDR(
         mhw::vebox::VEBOX_STATE_PAR &veboxStateCmdParams);
 
@@ -1194,6 +1214,7 @@ protected:
     VP_SURFACE                  *m_currentSurface           = nullptr;              //!< Current frame
     VP_SURFACE                  *m_previousSurface          = nullptr;              //!< Previous frame
     VP_SURFACE                  *m_renderTarget             = nullptr;              //!< Render Target frame
+    VP_SURFACE                  *m_originalOutput           = nullptr;              //!< Render Target frame
 
     uint32_t                    m_dwGlobalNoiseLevelU = 0;                        //!< Global Noise Level for U
     uint32_t                    m_dwGlobalNoiseLevelV = 0;                        //!< Global Noise Level for V
