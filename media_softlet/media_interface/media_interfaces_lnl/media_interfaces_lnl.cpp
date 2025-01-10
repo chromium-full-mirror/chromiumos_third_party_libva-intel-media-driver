@@ -53,7 +53,12 @@
 #include "igvpkrn_l0_xe2_hpg.h"
 #include "igvpfc_common_xe2.h"
 #include "igvpfc_fp_xe2.h"
+#include "igvpfc_420PL3_input_xe2.h"
+#include "igvpfc_420PL3_output_xe2.h"
 #include "igvpfc_444PL3_input_xe2.h"
+#include "igvpfc_444PL3_output_xe2.h"
+#include "igvpfc_422HV_input_xe2.h"
+#include "igvp3dlut_xe2.h"
 #endif
 
 using namespace mhw::vdbox::avp::xe2_lpm_base;
@@ -152,7 +157,12 @@ void VphalInterfacesXe2_Lpm::InitPlatformKernelBinary(
     vpPlatformInterface->AddVpNativeAdvKernelEntryToList(IGVP3DLUT_GENERATION_XE2_HPG, IGVP3DLUT_GENERATION_XE2_HPG_SIZE, "hdr_3dlut_l0");
     AddVpNativeKernelEntryToListFc_commonXe2(*vpPlatformInterface);
     AddVpNativeKernelEntryToListFc_fpXe2(*vpPlatformInterface);
+    AddVpNativeKernelEntryToListFc_420pl3_inputXe2(*vpPlatformInterface);
+    AddVpNativeKernelEntryToListFc_420pl3_outputXe2(*vpPlatformInterface);
     AddVpNativeKernelEntryToListFc_444pl3_inputXe2(*vpPlatformInterface);
+    AddVpNativeKernelEntryToListFc_444pl3_outputXe2(*vpPlatformInterface);
+    AddVpNativeKernelEntryToListFc_422hv_inputXe2(*vpPlatformInterface);
+    AddVpNativeKernelEntryToList3dlutXe2(*vpPlatformInterface);
 #endif
 }
 

@@ -120,7 +120,7 @@ MOS_STATUS VpPlatformInterfaceXe2_Hpm::InitVpRenderHwCaps()
         // Init native adv kernel form VP Native adv kernel Binary List
         for (auto &curKernelEntry : m_vpNativeAdvKernelBinaryList)
         {
-            VP_PUBLIC_CHK_STATUS_RETURN(InitVpNativeAdvKernels(curKernelEntry.first, curKernelEntry.second));
+            InitVpNativeAdvKernels(curKernelEntry.first, curKernelEntry.second);
         }
     }
     return MOS_STATUS_SUCCESS;
@@ -261,5 +261,12 @@ MOS_STATUS VpPlatformInterfaceXe2_Hpm::InitPolicyRules(VP_POLICY_RULES &rules)
     VP_PUBLIC_CHK_STATUS_RETURN(VpPlatformInterface::InitPolicyRules(rules));
 
     rules.isHDR33LutSizeEnabled = true;
+    return MOS_STATUS_SUCCESS;
+}
+
+MOS_STATUS VpPlatformInterfaceXe2_Hpm::InitVpFeatureSupportBits()
+{
+    VP_FUNC_CALL();
+    VP_PUBLIC_CHK_STATUS_RETURN(VpPlatformInterface::InitVpFeatureSupportBits());
     return MOS_STATUS_SUCCESS;
 }

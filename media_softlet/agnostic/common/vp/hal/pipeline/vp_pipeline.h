@@ -227,6 +227,11 @@ public:
         return m_allocator;
     }
 
+    virtual bool IsOclFCEnabled()
+    {
+        return m_vpMhwInterface.m_userFeatureControl->EnableOclFC();
+    }
+
     // for debug purpose
 #if (_DEBUG || _RELEASE_INTERNAL)
     //!
@@ -470,6 +475,7 @@ protected:
     VpUserFeatureControl  *m_userFeatureControl = nullptr;
     std::vector<VpSinglePipeContext *> m_vpPipeContexts     = {};
     VpPipelineParamFactory            *m_pipelineParamFactory = nullptr;
+    bool                               m_reportOnceFlag       = true;
 
     MEDIA_CLASS_DEFINE_END(vp__VpPipeline)
 };

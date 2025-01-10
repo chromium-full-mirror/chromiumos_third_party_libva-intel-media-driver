@@ -636,6 +636,7 @@ typedef struct tagKdll_CacheEntry
     // Kernel binary
     uint8_t *pBinary;  // kernel binary
     int      iSize;    // kernel size
+    int      iPaddingSize; //kernel padding size
 
     // Component kernel information
     int            iKUID;   // kernel unique id (static kernel)
@@ -885,6 +886,11 @@ void KernelDll_GetCSCMatrix(
     Kdll_CSpace src,
     Kdll_CSpace dst,
     float *     pCSC_Matrix);
+
+void KernelDll_MatrixProduct(
+    float       *dest,
+    const float *m1,
+    const float *m2);
 
 // Simple Hash function
 uint32_t KernelDll_SimpleHash(

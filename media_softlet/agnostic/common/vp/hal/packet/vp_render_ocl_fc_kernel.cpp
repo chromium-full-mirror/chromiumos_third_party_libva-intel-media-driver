@@ -25,25 +25,37 @@
 //! \details  render packet provide the structures and generate the cmd buffer which mediapipline will used.
 //!
 
-#include "vp_render_l0_fc_kernel.h"
+#include "vp_render_ocl_fc_kernel.h"
 
 using namespace vp;
 
-VpRenderL0FcKernel::VpRenderL0FcKernel(PVP_MHWINTERFACE hwInterface, VpKernelID kernelID, uint32_t kernelIndex, PVpAllocator allocator) : VpRenderKernelObj(hwInterface, kernelID, kernelIndex, "", allocator)
+VpRenderOclFcKernel::VpRenderOclFcKernel(PVP_MHWINTERFACE hwInterface, VpKernelID kernelID, uint32_t kernelIndex, PVpAllocator allocator) : VpRenderKernelObj(hwInterface, kernelID, kernelIndex, "", allocator)
 {
     m_renderHal   = hwInterface ? hwInterface->m_renderHal : nullptr;
     m_kernelIndex = kernelIndex;
 
     switch (kernelID)
     {
-    case kernelL0FcCommon:
+    case kernelOclFcCommon:
         m_kernelName = "FastComp_fc_common";
         break;
-    case kernelL0FcFP:
+    case kernelOclFcFP:
         m_kernelName = "FastExpress_fc_fp";
         break;
-    case kernelL0Fc444PL3Input:
+    case kernelOclFc444PL3Input:
         m_kernelName = "ImageRead_fc_444PL3_input";
+        break;
+    case kernelOclFc444PL3Output:
+        m_kernelName = "ImageWrite_fc_444PL3_output";
+        break;
+    case kernelOclFc420PL3Input:
+        m_kernelName = "ImageRead_fc_420PL3_input";
+        break;
+    case kernelOclFc420PL3Output:
+        m_kernelName = "ImageWrite_fc_420PL3_output";
+        break;
+    case kernelOclFc422HVInput:
+        m_kernelName = "ImageRead_fc_422HV_input";
         break;
     default:
         m_kernelName.assign("");
@@ -55,17 +67,17 @@ VpRenderL0FcKernel::VpRenderL0FcKernel(PVP_MHWINTERFACE hwInterface, VpKernelID 
     m_kernelBinaryID             = VP_ADV_KERNEL_BINARY_ID(kernelID);
 }
 
-VpRenderL0FcKernel::~VpRenderL0FcKernel()
+VpRenderOclFcKernel::~VpRenderOclFcKernel()
 {
     MOS_SafeFreeMemory(m_curbe);
     m_curbe = nullptr;
 }
 
-MOS_STATUS VpRenderL0FcKernel::Init(VpRenderKernel &kernel)
+MOS_STATUS VpRenderOclFcKernel::Init(VpRenderKernel &kernel)
 {
     VP_FUNC_CALL();
 
-    VP_RENDER_NORMALMESSAGE("Initializing L0 FC krn %s", kernel.GetKernelName().c_str());
+    VP_RENDER_NORMALMESSAGE("Initializing OCL FC krn %s", kernel.GetKernelName().c_str());
 
     m_kernelSize = kernel.GetKernelSize();
 
@@ -92,7 +104,7 @@ MOS_STATUS VpRenderL0FcKernel::Init(VpRenderKernel &kernel)
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::SetSamplerStates(KERNEL_SAMPLER_STATE_GROUP &samplerStateGroup)
+MOS_STATUS VpRenderOclFcKernel::SetSamplerStates(KERNEL_SAMPLER_STATE_GROUP &samplerStateGroup)
 {
     VP_FUNC_CALL();
 
@@ -142,11 +154,11 @@ MOS_STATUS VpRenderL0FcKernel::SetSamplerStates(KERNEL_SAMPLER_STATE_GROUP &samp
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::SetKernelArgs(KERNEL_ARGS &kernelArgs, VP_PACKET_SHARED_CONTEXT *sharedContext)
+MOS_STATUS VpRenderOclFcKernel::SetKernelArgs(KERNEL_ARGS &kernelArgs, VP_PACKET_SHARED_CONTEXT *sharedContext)
 {
     VP_FUNC_CALL();
 
-    //All pData will be free in VpL0FcFilter::Destroy so no need to free here
+    //All pData will be free in VpOclFcFilter::Destroy so no need to free here
     for (KRN_ARG &srcArg : kernelArgs)
     {
         auto handle = m_kernelArgs.find(srcArg.uIndex);
@@ -210,13 +222,13 @@ MOS_STATUS VpRenderL0FcKernel::SetKernelArgs(KERNEL_ARGS &kernelArgs, VP_PACKET_
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::SetKernelStatefulSurfaces(KERNEL_ARG_INDEX_SURFACE_MAP& statefulSurfaces)
+MOS_STATUS VpRenderOclFcKernel::SetKernelStatefulSurfaces(KERNEL_ARG_INDEX_SURFACE_MAP &statefulSurfaces)
 {
     m_argIndexSurfMap = statefulSurfaces;
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::GetCurbeState(void *&curbe, uint32_t &curbeLength)
+MOS_STATUS VpRenderOclFcKernel::GetCurbeState(void *&curbe, uint32_t &curbeLength)
 {
     VP_FUNC_CALL();
     curbeLength = m_curbeSize;
@@ -263,7 +275,7 @@ MOS_STATUS VpRenderL0FcKernel::GetCurbeState(void *&curbe, uint32_t &curbeLength
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
+MOS_STATUS VpRenderOclFcKernel::SetupSurfaceState()
 {
     VP_FUNC_CALL();
 
@@ -274,7 +286,7 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
         uint32_t argIndex = it->first;
         uint32_t bti      = it->second;
 
-        VP_RENDER_NORMALMESSAGE("Setting Surface State for L0 FC. KernelID %d, layer %d, argIndex %d , bti %d", m_kernelId, m_kernelIndex, argIndex, bti);
+        VP_RENDER_NORMALMESSAGE("Setting Surface State for OCL FC. KernelID %d, layer %d, argIndex %d , bti %d", m_kernelId, m_kernelIndex, argIndex, bti);
 
         MOS_ZeroMemory(&kernelSurfaceParam, sizeof(KERNEL_SURFACE_STATE_PARAM));
         kernelSurfaceParam.surfaceOverwriteParams.updatedRenderSurfaces = true;
@@ -294,9 +306,9 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
             pRenderSurfaceParams->combineChannelY = true;
         }
         surfType = surfHandle->second.surfType;
-        if (surfType == SurfaceTypeInvalid)
+        if (surfType == SurfaceTypeSubPlane || surfType == SurfaceTypeInvalid)
         {
-            VP_RENDER_NORMALMESSAGE("Will skip surface argIndex %d, bti %d for it is set as invalid", argIndex, bti);
+            VP_RENDER_NORMALMESSAGE("Will skip surface argIndex %d, bti %d for its surf type is set as %d", argIndex, bti, surfType);
             continue;
         }
         pRenderSurfaceParams->isOutput = surfHandle->second.isOutput;
@@ -319,16 +331,15 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
                                                m_renderHal->pOsInterface->pfnGetGmmClientContext(m_renderHal->pOsInterface)))
                                               .DwordValue;
         pRenderSurfaceParams->Component = COMPONENT_VPCommon;
-        
-        if (m_kernelId == kernelL0FcCommon ||
-            m_kernelId == kernelL0FcFP)
+        if (m_kernelId == kernelOclFcCommon ||
+            m_kernelId == kernelOclFcFP)
         {
             kernelSurfaceParam.surfaceOverwriteParams.updatedSurfaceParams = true;
             kernelSurfaceParam.surfaceOverwriteParams.format               = surf->second->osSurface->Format;
             kernelSurfaceParam.surfaceOverwriteParams.width                = MOS_MIN(static_cast<uint16_t>(surf->second->osSurface->dwWidth), static_cast<uint16_t>(surf->second->rcSrc.right));
             kernelSurfaceParam.surfaceOverwriteParams.height               = MOS_MIN(static_cast<uint16_t>(surf->second->osSurface->dwHeight), static_cast<uint16_t>(surf->second->rcSrc.bottom));
         }
-        
+
         if (surfHandle->second.needVerticalStirde)
         {
             switch (surf->second->SampleType)
@@ -350,18 +361,6 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
             }
         }
 
-        if (surf->second->SurfType == SURF_OUT_RENDERTARGET &&
-           (surf->second->osSurface->Format == Format_YUY2 ||
-            surf->second->osSurface->Format == Format_Y210 ||
-            surf->second->osSurface->Format == Format_Y216 ||
-            surf->second->osSurface->Format == Format_YUYV ||
-            surf->second->osSurface->Format == Format_YVYU ||
-            surf->second->osSurface->Format == Format_UYVY ||
-            surf->second->osSurface->Format == Format_VYUY))
-        {
-            pRenderSurfaceParams->bWidthInDword_Y = true;
-        }
-
         if (surf->second->osSurface->Format == Format_Buffer)
         {
             kernelSurfaceParam.surfaceOverwriteParams.updatedSurfaceParams = true;
@@ -376,7 +375,7 @@ MOS_STATUS VpRenderL0FcKernel::SetupSurfaceState()
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::GetWalkerSetting(KERNEL_WALKER_PARAMS &walkerParam, KERNEL_PACKET_RENDER_DATA &renderData)
+MOS_STATUS VpRenderOclFcKernel::GetWalkerSetting(KERNEL_WALKER_PARAMS &walkerParam, KERNEL_PACKET_RENDER_DATA &renderData)
 {
     VP_FUNC_CALL();
 
@@ -394,7 +393,7 @@ MOS_STATUS VpRenderL0FcKernel::GetWalkerSetting(KERNEL_WALKER_PARAMS &walkerPara
 }
 
 // Only for Adv kernels.
-MOS_STATUS VpRenderL0FcKernel::SetWalkerSetting(KERNEL_THREAD_SPACE &threadSpace, bool bSyncFlag, bool flushL1)
+MOS_STATUS VpRenderOclFcKernel::SetWalkerSetting(KERNEL_THREAD_SPACE &threadSpace, bool bSyncFlag, bool flushL1)
 {
     VP_FUNC_CALL();
     MOS_ZeroMemory(&m_walkerParam, sizeof(KERNEL_WALKER_PARAMS));
@@ -445,14 +444,14 @@ MOS_STATUS VpRenderL0FcKernel::SetWalkerSetting(KERNEL_THREAD_SPACE &threadSpace
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::SetKernelConfigs(KERNEL_CONFIGS& kernelConfigs)
+MOS_STATUS VpRenderOclFcKernel::SetKernelConfigs(KERNEL_CONFIGS &kernelConfigs)
 {
     VP_FUNC_CALL();
 
     auto handle = kernelConfigs.find(m_kernelId);
     VP_PUBLIC_CHK_NOT_FOUND_RETURN(handle, &kernelConfigs);
     
-    L0_FC_KERNEL_CONFIG *kernelConfig = (L0_FC_KERNEL_CONFIG *)handle->second;
+    OCL_FC_KERNEL_CONFIG *kernelConfig = (OCL_FC_KERNEL_CONFIG *)handle->second;
     VP_PUBLIC_CHK_NULL_RETURN(kernelConfig);
 
     m_kernelConfig = *kernelConfig;
@@ -460,7 +459,7 @@ MOS_STATUS VpRenderL0FcKernel::SetKernelConfigs(KERNEL_CONFIGS& kernelConfigs)
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRenderL0FcKernel::SetPerfTag()
+MOS_STATUS VpRenderOclFcKernel::SetPerfTag()
 {
     auto pOsInterface = m_hwInterface->m_osInterface;
     VP_RENDER_CHK_NULL_RETURN(pOsInterface);

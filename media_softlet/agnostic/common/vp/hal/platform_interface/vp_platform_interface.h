@@ -41,6 +41,27 @@ class SfcRenderBase;
 class VpKernelSet;
 typedef void (*DelayLoadedFunc)(vp::VpPlatformInterface &vpPlatformInterface);
 
+//! Struct VP_FEATURE_SUPPORT_BITS
+//! \brief define VP support feature bits
+//!
+typedef struct _VP_FEATURE_SUPPORT_BITS
+{
+    union
+    {
+        struct
+        {
+#ifdef _MEDIA_RESERVED
+#include "vp_feature_support_bits_ext.h"
+#else
+            uint64_t vpFeatureSupportBitsReserved : 1;
+#endif
+        };
+        uint64_t value = 0;
+    };
+} VP_FEATURE_SUPPORT_BITS;
+
+C_ASSERT(sizeof(_VP_FEATURE_SUPPORT_BITS) == sizeof(uint64_t));
+
 struct VP_KERNEL_BINARY_ENTRY
 {
     const uint32_t        *kernelBin    = nullptr;
@@ -115,7 +136,7 @@ public:
     }
 
 
-    //for L0 use only
+    //for OCL use only
     uint32_t &GetCurbeSize()
     {
         return m_curbeSize;
@@ -146,14 +167,14 @@ protected:
     uint32_t                    m_kernelBinSize = 0;
     // CM Kernel Execution Code Offset
     uint32_t                    m_kernelBinOffset = 0;
-    // CM Kernel Arguments or L0 Kernel Arguments
+    // CM Kernel Arguments or OCL Kernel Arguments
     KERNEL_ARGS                 m_kernelArgs;
     std::string                 m_kernelName = {};
     // CM Compositing Kernel patch file buffer and size
     const void                  *m_fcPatchBin = nullptr;
     uint32_t                    m_fcPatchBinSize = 0;
 
-    //for L0 use only
+    //for OCL use only
     uint32_t m_curbeSize = 0;
     KERNEL_BTIS     m_kernelBtis;
     KRN_EXECUTE_ENV m_kernelExeEnv = {};
@@ -180,7 +201,7 @@ public:
         std::string           postfix = "",
         uint32_t              payloadOffset = CM_PAYLOAD_OFFSET);
 
-    virtual MOS_STATUS InitVpNativeAdvKernels(
+    virtual void InitVpNativeAdvKernels(
         std::string kernelName,
         VP_KERNEL_BINARY_ENTRY kernelBinaryEntry);
 
@@ -349,7 +370,7 @@ public:
         uint32_t        kernelBinSize,
         std::string     kernelName);
 
-    //for L0 kernel use only
+    //for OCL kernel use only
     virtual void InitVpDelayedNativeAdvKernel(
         const uint32_t  *kernelBin,
         uint32_t         kernelBinSize,
@@ -416,9 +437,25 @@ public:
         return MOS_STATUS_SUCCESS;
     }
 
-    virtual bool SupportL0FC()
+    MOS_STATUS SetOclKernelEnable()
     {
-        return false;
+        m_isOclKernelEnabled = true;
+        return MOS_STATUS_SUCCESS;
+    }
+
+    bool IsOclKernelEnabled()
+    {
+        return m_isOclKernelEnabled;
+    }
+
+    virtual MOS_STATUS InitVpFeatureSupportBits()
+    {
+        return MOS_STATUS_SUCCESS;
+    }
+
+    virtual VP_FEATURE_SUPPORT_BITS& GetVpFeatureSupportBits()
+    {
+        return m_vpFeatureSupportBits;
     }
 
 protected:
@@ -444,8 +481,9 @@ protected:
     std::map<DelayLoadedKernelType, DelayLoadedFunc> m_vpDelayLoadedNativeFunctionSet;
 
     bool m_isRenderDisabled = false;
+    bool m_isOclKernelEnabled = false;
     VpFrameTracker *m_frameTracker     = nullptr;
-
+    VP_FEATURE_SUPPORT_BITS m_vpFeatureSupportBits = {};
     MEDIA_CLASS_DEFINE_END(vp__VpPlatformInterface)
 };
 

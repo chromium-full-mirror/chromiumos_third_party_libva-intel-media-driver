@@ -52,7 +52,7 @@ MOS_STATUS VpFeatureReuseBase::UpdatePacket(SwFilter *filter, VpCmdPacket *packe
     return MOS_STATUS_INVALID_PARAMETER;
 }
 
-MOS_STATUS VpFeatureReuseBase::CheckTeamsParams(bool reusable, bool &reused, SwFilter *filter, uint32_t index)
+MOS_STATUS VpFeatureReuseBase::CheckTeamsParams(bool &reused, SwFilter *filter, uint32_t index)
 {
     reused = false;
     return MOS_STATUS_SUCCESS;
@@ -119,7 +119,7 @@ MOS_STATUS VpScalingReuse::UpdateFeatureParams(FeatureParamScaling &params)
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpScalingReuse::CheckTeamsParams(bool reusable, bool &reused, SwFilter *filter, uint32_t index)
+MOS_STATUS VpScalingReuse::CheckTeamsParams(bool &reused, SwFilter *filter, uint32_t index)
 {
     VP_FUNC_CALL();
     SwFilterScaling     *scaling = dynamic_cast<SwFilterScaling *>(filter);
@@ -128,7 +128,7 @@ MOS_STATUS VpScalingReuse::CheckTeamsParams(bool reusable, bool &reused, SwFilte
     auto                 it      = m_params_Teams.find(index);
     VP_PUBLIC_CHK_NOT_FOUND_RETURN(it, &m_params_Teams);
 
-    if (reusable && params == it->second)
+    if (params == it->second)
     {
         // No need call UpdateFeatureParams. Just keep compared items updated in m_params
         // is enough. UpdatePacket should use params in swfilter instead of m_params.
@@ -245,7 +245,7 @@ MOS_STATUS VpCscReuse::UpdateFeatureParams(FeatureParamCsc &params)
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpCscReuse::CheckTeamsParams(bool reusable, bool &reused, SwFilter *filter, uint32_t index)
+MOS_STATUS VpCscReuse::CheckTeamsParams(bool &reused, SwFilter *filter, uint32_t index)
 {
     VP_FUNC_CALL();
     auto IsIefEnabled = [&](PVPHAL_IEF_PARAMS iefParams) {
@@ -259,8 +259,7 @@ MOS_STATUS VpCscReuse::CheckTeamsParams(bool reusable, bool &reused, SwFilter *f
     VP_PUBLIC_CHK_NOT_FOUND_RETURN(it, &m_params_Teams);
 
     // pIEFParams to be updated.
-    if (reusable &&
-        params.formatInput == it->second.formatInput &&
+    if (params.formatInput == it->second.formatInput &&
         params.formatOutput == it->second.formatOutput &&
         params.input == it->second.input &&
         params.output == it->second.output &&
@@ -341,7 +340,7 @@ MOS_STATUS VpRotMirReuse::UpdateFeatureParams(FeatureParamRotMir &params)
     return MOS_STATUS_SUCCESS;
 }
 
-MOS_STATUS VpRotMirReuse::CheckTeamsParams(bool reusable, bool &reused, SwFilter *filter, uint32_t index)
+MOS_STATUS VpRotMirReuse::CheckTeamsParams(bool &reused, SwFilter *filter, uint32_t index)
 {
     VP_FUNC_CALL();
 
@@ -353,8 +352,7 @@ MOS_STATUS VpRotMirReuse::CheckTeamsParams(bool reusable, bool &reused, SwFilter
     VP_PUBLIC_CHK_NOT_FOUND_RETURN(it, &m_params_Teams);
 
     // pIEFParams to be updated.
-    if (reusable &&
-        params == it->second)
+    if (params == it->second)
     {
         reused = true;
     }
@@ -808,7 +806,7 @@ MOS_STATUS VpPacketReuseManager::PreparePacketPipeReuse(SwFilterPipe *&swFilterP
 
         if (m_pipeReused)
         {
-            m_packetPipeFactory.ReturnPacketPipe(m_pipeReused);
+            ReturnPacketPipeReused();
         }
 
         return MOS_STATUS_SUCCESS;
@@ -834,7 +832,7 @@ MOS_STATUS VpPacketReuseManager::PreparePacketPipeReuse(SwFilterPipe *&swFilterP
                 isPacketPipeReused = false;
                 if (m_pipeReused)
                 {
-                    m_packetPipeFactory.ReturnPacketPipe(m_pipeReused);
+                    ReturnPacketPipeReused();
                 }
                 return MOS_STATUS_SUCCESS;
             }
@@ -921,19 +919,19 @@ MOS_STATUS VpPacketReuseManager::PreparePacketPipeReuse(SwFilterPipe *&swFilterP
 
         for (index = 0; index < m_pipeReused_TeamsPacket.size(); index++)
         {
-            scalingreuse->second->CheckTeamsParams(reusableOfLastPipe, reused, scaling, index);
+            scalingreuse->second->CheckTeamsParams(reused, scaling, index);
             if (!reused)
             {
                 continue;
             }
 
-            cscreuse->second->CheckTeamsParams(reusableOfLastPipe, reused, csc, index);
+            cscreuse->second->CheckTeamsParams(reused, csc, index);
             if (!reused)
             {
                 continue;
             }
 
-            rotreuse->second->CheckTeamsParams(reusableOfLastPipe, reused, rot, index);
+            rotreuse->second->CheckTeamsParams(reused, rot, index);
             if (reused)
             {
                 break;
@@ -948,35 +946,18 @@ MOS_STATUS VpPacketReuseManager::PreparePacketPipeReuse(SwFilterPipe *&swFilterP
 
             m_TeamsPacket_reuse = false;
 
-            foundPipe = false;
-            for (index = 0; index < m_pipeReused_TeamsPacket.size(); index++)
-            {
-                auto pipeReuseHandle = m_pipeReused_TeamsPacket.find(index);
-                if (pipeReuseHandle != m_pipeReused_TeamsPacket.end() &&
-                    m_pipeReused == pipeReuseHandle->second)
-                {
-                    foundPipe = true;
-                    break;
-                }
-            }
-
-            if (foundPipe == false)
-            {
-                if (m_pipeReused)
-                {
-                    m_packetPipeFactory.ReturnPacketPipe(m_pipeReused);
-                }
-            }
-            else
-            {
-                m_pipeReused = nullptr;
-            }
+            ReturnPacketPipeReused();
 
             return MOS_STATUS_SUCCESS;
         }
         else
         {
             auto pipe_TeamsPacket = m_pipeReused_TeamsPacket.find(index);
+            if (pipe_TeamsPacket == m_pipeReused_TeamsPacket.end())
+            {
+                VP_PUBLIC_ASSERTMESSAGE("Invalid teams packet pipe for reuse!");
+                VP_PUBLIC_CHK_STATUS_RETURN(MOS_STATUS_INVALID_PARAMETER);
+            }
 
             VpCmdPacket *packet = pipe_TeamsPacket->second->GetPacket(0);
             VP_PUBLIC_CHK_NULL_RETURN(packet);
@@ -1014,29 +995,7 @@ MOS_STATUS VpPacketReuseManager::PreparePacketPipeReuse(SwFilterPipe *&swFilterP
         // m_pipeReused will be udpated in UpdatePacketPipeConfig.
         VP_PUBLIC_NORMALMESSAGE("Packet cannot be reused.");
 
-        foundPipe = false;
-        for (index = 0; index < m_pipeReused_TeamsPacket.size(); index++)
-        {
-            auto pipeReuseHandle = m_pipeReused_TeamsPacket.find(index);
-            if (pipeReuseHandle != m_pipeReused_TeamsPacket.end() &&
-                m_pipeReused == pipeReuseHandle->second)
-            {
-                foundPipe = true;
-                break;
-            }
-        }
-
-        if (foundPipe == false)
-        {
-            if (m_pipeReused)
-            {
-                m_packetPipeFactory.ReturnPacketPipe(m_pipeReused);
-            }
-        }
-        else
-        {
-            m_pipeReused = nullptr;
-        }
+        ReturnPacketPipeReused();
 
         return MOS_STATUS_SUCCESS;
     }
@@ -1133,10 +1092,7 @@ MOS_STATUS VpPacketReuseManager::UpdatePacketPipeConfig(PacketPipe *&pipe)
 
     if (!m_TeamsPacket)
     {
-        if (m_pipeReused)
-        {
-            m_packetPipeFactory.ReturnPacketPipe(m_pipeReused);
-        }
+        ReturnPacketPipeReused();
     }
 
     m_pipeReused = pipe;
@@ -1146,3 +1102,21 @@ MOS_STATUS VpPacketReuseManager::UpdatePacketPipeConfig(PacketPipe *&pipe)
     return MOS_STATUS_SUCCESS;
 }
 
+void VpPacketReuseManager::ReturnPacketPipeReused()
+{
+    VP_FUNC_CALL();
+    if (nullptr == m_pipeReused)
+    {
+        return;
+    }
+    for (const auto &pair : m_pipeReused_TeamsPacket)
+    {
+        if (pair.second == m_pipeReused)
+        {
+            m_pipeReused = nullptr;
+            return;
+        }
+    }
+    m_packetPipeFactory.ReturnPacketPipe(m_pipeReused);
+    return;
+}

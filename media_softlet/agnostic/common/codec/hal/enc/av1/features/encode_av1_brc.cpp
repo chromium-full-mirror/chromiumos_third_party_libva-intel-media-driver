@@ -70,7 +70,12 @@ namespace encode
 
         EncoderParams *encodeParams = (EncoderParams *)params;
 
-        ENCODE_CHK_STATUS_RETURN(SetSequenceStructs());
+        // If new seq, need to set sequence structs
+        // If RATECONTROL_CQL, need to update quality and bitrate .etc
+        if (encodeParams->bNewSeq || m_basicFeature->m_av1SeqParams->RateControlMethod == RATECONTROL_CQL)
+        {
+            ENCODE_CHK_STATUS_RETURN(SetSequenceStructs());
+        }
 
         const auto& seqParams = *m_basicFeature->m_av1SeqParams;
 
@@ -80,6 +85,15 @@ namespace encode
             "Encode RateControl Method",
             m_rcMode,
             MediaUserSetting::Group::Sequence);
+        
+        ENCODE_CHK_NULL_RETURN(m_basicFeature->m_av1PicParams);
+        MediaUserSetting::Value outValue;
+        ReadUserSetting(
+            m_userSettingPtr,
+            outValue,
+            "Adaptive TU Enable",
+            MediaUserSetting::Group::Sequence);
+        m_basicFeature->m_av1PicParams->AdaptiveTUEnabled |= outValue.Get<uint8_t>(); 
 #endif
         return MOS_STATUS_SUCCESS;
     }
@@ -206,6 +220,7 @@ namespace encode
         dmem->UPD_CurHeight = (uint16_t)m_basicFeature->m_oriFrameHeight;
         dmem->UPD_Asyn = 0;
         dmem->UPD_EnableAdaptiveRounding = (m_basicFeature->m_roundingMethod == RoundingMethod::adaptiveRounding);
+        dmem->UPD_AdaptiveTUEnabled = picParams->AdaptiveTUEnabled;
 
         if (seqParams->GopRefDist == 16 && m_rcMode == RATECONTROL_CQL)
             dmem->UPD_MaxBRCLevel = 4;
@@ -237,9 +252,10 @@ namespace encode
                 dmem->UPD_CurrFrameType = hierchLevelPlus1_to_brclevel.count(picParams->HierarchLevelPlus1) ? hierchLevelPlus1_to_brclevel[picParams->HierarchLevelPlus1] : AV1_BRC_FRAME_TYPE_INVALID;
                 //Invalid HierarchLevelPlus1 or LBD frames at level 3 eror check.
                 if ((dmem->UPD_CurrFrameType == AV1_BRC_FRAME_TYPE_INVALID) ||
-                    (m_basicFeature->m_ref.IsLowDelay() && dmem->UPD_CurrFrameType == AV1_BRC_FRAME_TYPE_B2))
+                    (m_basicFeature->m_ref.IsLowDelay() && dmem->UPD_CurrFrameType == AV1_BRC_FRAME_TYPE_B2) ||
+                    (m_rcMode != RATECONTROL_CQL && dmem->UPD_CurrFrameType == AV1_BRC_FRAME_TYPE_B3))
                 {
-                    ENCODE_VERBOSEMESSAGE("AV1_BRC_FRAME_TYPE_INVALID or LBD picture doesn't support Level 4\n");
+                    ENCODE_VERBOSEMESSAGE("AV1_BRC_FRAME_TYPE_INVALID or LBD picture doesn't support Level 4, or AV1_BRC_FRAME_TYPE_B3 only supported in RATECONTROL_CQL mode\n");
                     dmem->UPD_CurrFrameType = AV1_BRC_FRAME_TYPE_B2;
                 }
             }

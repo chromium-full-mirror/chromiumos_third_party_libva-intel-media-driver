@@ -407,7 +407,23 @@ MOS_STATUS CodechalInterfacesXe2_Hpm::Initialize(
     }
     else if (CodecHalIsEncode(CodecFunction))
     {
-#ifdef _MEDIA_RESERVED
+
+#if defined(_HEVC_ENCODE_VDENC_SUPPORTED)
+        if (info->Mode == CODECHAL_ENCODE_MODE_HEVC)
+        {
+            if (CodecHalUsesVdencEngine(info->CodecFunction))
+            {
+                m_codechalDevice = MOS_New(EncodeHevcVdencPipelineAdapterXe2_Hpm, hwInterface, debugInterface);
+                if (m_codechalDevice == nullptr)
+                {
+                    CODECHAL_PUBLIC_ASSERTMESSAGE("Encode state creation failed!");
+                    CODECHAL_PUBLIC_CHK_STATUS_WITH_DESTROY_RETURN(MOS_STATUS_INVALID_PARAMETER, release_func);
+                }
+                return MOS_STATUS_SUCCESS;
+            }
+        }
+        else
+#endif
 #if defined (_AVC_ENCODE_VDENC_SUPPORTED)
         if (info->Mode == CODECHAL_ENCODE_MODE_AVC)
         {
@@ -424,6 +440,20 @@ MOS_STATUS CodechalInterfacesXe2_Hpm::Initialize(
         }
         else
 #endif
+#ifdef _JPEG_ENCODE_SUPPORTED
+        if (info->Mode == CODECHAL_ENCODE_MODE_JPEG)
+        {
+            m_codechalDevice = MOS_New(EncodeJpegPipelineAdapter, hwInterface, debugInterface);
+            if (m_codechalDevice == nullptr)
+            {
+                CODECHAL_PUBLIC_ASSERTMESSAGE("Encode state creation failed!");
+                CODECHAL_PUBLIC_CHK_STATUS_WITH_DESTROY_RETURN(MOS_STATUS_INVALID_PARAMETER, release_func);
+            }
+            return MOS_STATUS_SUCCESS;
+        }
+        else
+#endif
+#ifdef _MEDIA_RESERVED
 #ifdef _VP9_ENCODE_VDENC_SUPPORTED
         if (info->Mode == CODECHAL_ENCODE_MODE_VP9)
         {
@@ -437,18 +467,6 @@ MOS_STATUS CodechalInterfacesXe2_Hpm::Initialize(
         }
         else
 #endif
-#ifdef _JPEG_ENCODE_SUPPORTED
-        if (info->Mode == CODECHAL_ENCODE_MODE_JPEG)
-        {
-            m_codechalDevice = MOS_New(EncodeJpegPipelineAdapter, hwInterface, debugInterface);
-            if (m_codechalDevice == nullptr)
-            {
-                CODECHAL_PUBLIC_ASSERTMESSAGE("Encode state creation failed!");
-                CODECHAL_PUBLIC_CHK_STATUS_WITH_DESTROY_RETURN(MOS_STATUS_INVALID_PARAMETER, release_func);
-            }
-            return MOS_STATUS_SUCCESS;
-        }
-        else
 #endif
 #if defined(_AV1_ENCODE_VDENC_SUPPORTED)
         if (info->Mode == codechalEncodeModeAv1)
@@ -469,23 +487,6 @@ MOS_STATUS CodechalInterfacesXe2_Hpm::Initialize(
             }
         }
         else
-#endif
-#if defined(_HEVC_ENCODE_VDENC_SUPPORTED)
-        if (info->Mode == CODECHAL_ENCODE_MODE_HEVC)
-        {
-            if (CodecHalUsesVdencEngine(info->CodecFunction))
-            {
-                m_codechalDevice = MOS_New(EncodeHevcVdencPipelineAdapterXe2_Hpm, hwInterface, debugInterface);
-                if (m_codechalDevice == nullptr)
-                {
-                    CODECHAL_PUBLIC_ASSERTMESSAGE("Encode state creation failed!");
-                    CODECHAL_PUBLIC_CHK_STATUS_WITH_DESTROY_RETURN(MOS_STATUS_INVALID_PARAMETER, release_func);
-                }
-                return MOS_STATUS_SUCCESS;
-            }
-        }
-        else
-#endif
 #endif
         {
             CODECHAL_PUBLIC_ASSERTMESSAGE("Unsupported encode function requested.");

@@ -238,49 +238,49 @@ MOS_STATUS Policy::RegisterFcFeatures()
     VP_PUBLIC_CHK_NULL_RETURN(m_vpInterface.GetHwInterface())
     VpUserFeatureControl *vpUserFeatureControl = m_vpInterface.GetHwInterface()->m_userFeatureControl;
     VP_PUBLIC_CHK_NULL_RETURN(vpUserFeatureControl);
-    bool enableL0FC = vpUserFeatureControl->EnableL0FC();
+    bool enableOclFC = vpUserFeatureControl->EnableOclFC();
 
-    //Legacy Fc and L0 FC switching will be done in the wrapper handler class
-    //It will use Legacy FC if vpUserFeatureControl->EnableL0FC() is not true, which means specific platform not support L0 FC
-    //It will fall back to legacy FC when vp execute caps show bLegacyFC is true, which means some formats L0 FC not supported yet
-    //In the future, after all caps formats added for L0 FC, the wrapper will be removed and only register specific L0/Legacy FC handler
-    PolicyFeatureHandler *p = MOS_New(PolicyFcWrapHandler, m_hwCaps, enableL0FC);
+    //Legacy Fc and OCL FC switching will be done in the wrapper handler class
+    //It will use Legacy FC if vpUserFeatureControl->EnableOclFC() is not true, which means specific platform not support OCL FC
+    //It will fall back to legacy FC when vp execute caps show bLegacyFC is true, which means some formats OCL FC not supported yet
+    //In the future, after all caps formats added for OCL FC, the wrapper will be removed and only register specific OCL/Legacy FC handler
+    PolicyFeatureHandler *p = MOS_New(PolicyFcWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeFcOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeLumakeyOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeBlendingOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeColorFillOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeAlphaOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeCscOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeScalingOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeRotMirOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeDiOnRender, p));
 
-    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableL0FC);
+    p = MOS_New(PolicyFcFeatureWrapHandler, m_hwCaps, enableOclFC);
     VP_PUBLIC_CHK_NULL_RETURN(p);
     m_RenderFeatureHandlers.insert(std::make_pair(FeatureTypeProcampOnRender, p));
 
@@ -288,7 +288,7 @@ MOS_STATUS Policy::RegisterFcFeatures()
     VpFeatureReport *vpFeatureReport = m_vpInterface.GetHwInterface()->m_reporting;
     if (vpFeatureReport)
     {
-        vpFeatureReport->GetFeatures().isL0FC = enableL0FC;
+        vpFeatureReport->GetFeatures().isOclFC = enableOclFC;
     }
 #endif
 
@@ -1023,13 +1023,6 @@ MOS_STATUS Policy::GetCSCExecutionCaps(SwFilter* feature, bool isCamPipeWithBaye
         return MOS_STATUS_SUCCESS;
     }
 
-    if (cscParams->formatInput == Format_422H ||
-        cscParams->formatInput == Format_422V)
-    {
-        //422H and 422V input not supported by L0 FC yet. Will remove the restriction after they are enabled
-        cscEngine->forceLegacyFC = true;
-    }
-
     bool isAlphaSettingSupportedBySfc =
         IsAlphaSettingSupportedBySfc(cscParams->formatInput, cscParams->formatOutput, cscParams->pAlphaParams);
     bool isAlphaSettingSupportedByVebox =
@@ -1188,9 +1181,12 @@ MOS_STATUS Policy::GetScalingExecutionCaps(SwFilter *feature, bool isHdrEnabled,
     VP_PUBLIC_CHK_NULL_RETURN(feature);
     VP_PUBLIC_CHK_NULL_RETURN(m_vpInterface.GetHwInterface());
     VP_PUBLIC_CHK_NULL_RETURN(m_vpInterface.GetHwInterface()->m_userFeatureControl);
+    VP_PUBLIC_CHK_NULL_RETURN(m_vpInterface.GetHwInterface()->m_reporting);
 
     auto userFeatureControl = m_vpInterface.GetHwInterface()->m_userFeatureControl;
     bool disableSfc = userFeatureControl->IsSfcDisabled();
+    bool fallbackScalingToRender8K = userFeatureControl->IsFallbackScalingToRender8K();
+    auto reporting = m_vpInterface.GetHwInterface()->m_reporting;
     SwFilterScaling* scaling = (SwFilterScaling*)feature;
     FeatureParamScaling *scalingParams = &scaling->GetSwFilterParams();
     VP_EngineEntry *scalingEngine      = &scaling->GetFilterEngineCaps();
@@ -1217,19 +1213,6 @@ MOS_STATUS Policy::GetScalingExecutionCaps(SwFilter *feature, bool isHdrEnabled,
 
         PrintFeatureExecutionCaps(__FUNCTION__, *scalingEngine);
         return MOS_STATUS_SUCCESS;
-    }
-
-    //For BT2020 color fill, fall back to legacy FC. 
-    //Legacy FC and L0 FC both not support BT2020 as target Cspace ColorFill, Legacy FC will do wrong color
-    //Will remove restriction after L0 FC enabled BT2020 target color fill
-    if (IS_COLOR_SPACE_BT2020(scalingParams->csc.colorSpaceOutput) &&
-        scalingParams->pColorFillParams != nullptr                 &&
-        (scalingParams->input.rcDst.left > scalingParams->output.rcDst.left   ||
-         scalingParams->input.rcDst.right < scalingParams->output.rcDst.right ||
-         scalingParams->input.rcDst.top > scalingParams->output.rcDst.top     ||
-         scalingParams->input.rcDst.bottom < scalingParams->output.rcDst.bottom))
-    {
-        scalingEngine->forceLegacyFC = true;
     }
 
     // For AVS sampler not enabled case, HQ/Fast scaling should go to SFC.
@@ -1275,11 +1258,12 @@ MOS_STATUS Policy::GetScalingExecutionCaps(SwFilter *feature, bool isHdrEnabled,
         (uint32_t)(scalingParams->input.rcDst.right - scalingParams->input.rcDst.left),
         m_hwCaps.m_sfcHwEntry[scalingParams->formatOutput].horizontalAlignUnit);
 
+    bool isScalingNeeded = (dwOutputRegionHeight != dwSourceRegionHeight || dwOutputRegionWidth != dwSourceRegionWidth);
+
     if (!m_hwCaps.m_veboxHwEntry[scalingParams->formatInput].inputSupported)
     {
         // For non-scaling cases with vebox unsupported format, will force to use fc.
-        scalingEngine->bEnabled          = (dwOutputRegionHeight != dwSourceRegionHeight ||
-                                            dwOutputRegionWidth != dwSourceRegionWidth);
+        scalingEngine->bEnabled          = isScalingNeeded;
         scalingEngine->SfcNeeded         = 0;
         scalingEngine->VeboxNeeded       = 0;
         scalingEngine->RenderNeeded      = 1;
@@ -1324,8 +1308,7 @@ MOS_STATUS Policy::GetScalingExecutionCaps(SwFilter *feature, bool isHdrEnabled,
         OUT_OF_BOUNDS(dwSurfaceHeight, veboxMinHeight, veboxMaxHeight))
     {
         // For non-scaling cases with vebox unsupported format, will force to use fc.
-        scalingEngine->bEnabled          = (dwOutputRegionHeight != dwSourceRegionHeight ||
-                                            dwOutputRegionWidth != dwSourceRegionWidth);
+        scalingEngine->bEnabled          = isScalingNeeded;
         scalingEngine->SfcNeeded         = 0;
         scalingEngine->VeboxNeeded       = 0;
         scalingEngine->forceEnableForSfc = 0;
@@ -1337,6 +1320,31 @@ MOS_STATUS Policy::GetScalingExecutionCaps(SwFilter *feature, bool isHdrEnabled,
 
         VP_PUBLIC_NORMALMESSAGE("The surface resolution (%d x %d) is not supported by vebox (%d x %d) ~ (%d x %d).",
             dwSurfaceWidth, dwSurfaceHeight, veboxMinWidth, veboxMinHeight, veboxMaxWidth, veboxMaxHeight);
+
+        PrintFeatureExecutionCaps(__FUNCTION__, *scalingEngine);
+        return MOS_STATUS_SUCCESS;
+    }
+
+    if (MEDIA_IS_WA(m_vpInterface.GetHwInterface()->m_waTable, Wa_16025683853) &&
+        fallbackScalingToRender8K == true                     &&
+        scalingParams->input.dwHeight > 3072                  &&
+        isScalingNeeded)
+    {
+        // For sfc input height > 3072 case, will force to use fc.
+        scalingEngine->bEnabled           = 1;
+        scalingEngine->SfcNeeded          = 0;
+        scalingEngine->VeboxNeeded        = 0;
+        scalingEngine->RenderNeeded       = 1;
+        scalingEngine->hdrKernelSupported = 1;
+        scalingEngine->fcSupported        = 1;
+        scalingEngine->forceEnableForSfc  = 0;
+        scalingEngine->forceEnableForFc   = 1;
+        scalingEngine->sfcNotSupported    = 1;
+#if (_DEBUG || _RELEASE_INTERNAL)
+        reporting->GetFeatures().fallbackScalingToRender8K = fallbackScalingToRender8K;
+#endif
+
+        VP_PUBLIC_NORMALMESSAGE("The input height %d is greater than 3072.", scalingParams->input.dwHeight);
 
         PrintFeatureExecutionCaps(__FUNCTION__, *scalingEngine);
         return MOS_STATUS_SUCCESS;
@@ -2407,7 +2415,7 @@ MOS_STATUS Policy::InitExecuteCaps(VP_EXECUTE_CAPS &caps, VP_EngineEntry &engine
             // For vebox + render with features, which can be done on both sfc and render, 
             // and sfc is not must have, sfc should not be selected and those features should be done on render.
             caps.bSFC = engineCaps.nonVeboxFeatureExists && engineCaps.sfcOnlyFeatureExists;
-            // For L0 FC not supported formats, fallback to legacy FC
+            // For OCL FC not supported formats, fallback to legacy FC
             caps.bFallbackLegacyFC = engineCaps.forceLegacyFC;
 
         }
@@ -2719,7 +2727,7 @@ MOS_STATUS Policy::GetInputPipeEngineCaps(SwFilterPipe& featurePipe, VP_EngineEn
                     // not all features in input pipe can be processed by vebox/sfc and
                     // features in output pipe cannot be combined to vebox/sfc workload.
                     engineCapsForVeboxSfc.fcOnlyFeatureExists = true;
-                    engineCapsForFc.fcOnlyFeatureExists = true;
+                    engineCapsForFc.fcOnlyFeatureExists       = true;
                 }
                 if (engineCaps.sfcNotSupported)
                 {

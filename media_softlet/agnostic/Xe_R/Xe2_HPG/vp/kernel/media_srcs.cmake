@@ -26,7 +26,12 @@ set(TMP_SOURCES_
     ${CMAKE_CURRENT_LIST_DIR}/igvpkrn_l0_xe2_hpg.c
     ${CMAKE_CURRENT_LIST_DIR}/igvpfc_common_xe2.cpp
     ${CMAKE_CURRENT_LIST_DIR}/igvpfc_fp_xe2.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_420PL3_input_xe2.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_420PL3_output_xe2.cpp
     ${CMAKE_CURRENT_LIST_DIR}/igvpfc_444PL3_input_xe2.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_444PL3_output_xe2.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_422HV_input_xe2.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/igvp3dlut_xe2.cpp
 )
 
 
@@ -35,7 +40,12 @@ set(TMP_HEADERS_
     ${CMAKE_CURRENT_LIST_DIR}/igvpkrn_l0_xe2_hpg.h
     ${CMAKE_CURRENT_LIST_DIR}/igvpfc_common_xe2.h
     ${CMAKE_CURRENT_LIST_DIR}/igvpfc_fp_xe2.h
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_420PL3_input_xe2.h
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_420PL3_output_xe2.h
     ${CMAKE_CURRENT_LIST_DIR}/igvpfc_444PL3_input_xe2.h
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_444PL3_output_xe2.h
+    ${CMAKE_CURRENT_LIST_DIR}/igvpfc_422HV_input_xe2.h
+    ${CMAKE_CURRENT_LIST_DIR}/igvp3dlut_xe2.h
 )
 
 set(SOFTLET_VP_SOURCES_

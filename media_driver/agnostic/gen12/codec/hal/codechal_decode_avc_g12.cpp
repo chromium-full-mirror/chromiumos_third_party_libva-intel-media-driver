@@ -228,6 +228,8 @@ MOS_STATUS CodechalDecodeAvcG12::SetFrameStates()
 
     CODECHAL_DECODE_CHK_STATUS_RETURN(CodechalDecodeAvc::SetFrameStates());
 
+    CODECHAL_DECODE_CHK_STATUS_RETURN(ErrorDetectAndConceal());
+
     if (MOS_VE_SUPPORTED(m_osInterface) && !MOS_VE_CTXBASEDSCHEDULING_SUPPORTED(m_osInterface))
     {
         MOS_VIRTUALENGINE_SET_PARAMS vesetParams;
@@ -241,6 +243,28 @@ MOS_STATUS CodechalDecodeAvcG12::SetFrameStates()
         vesetParams.bNeedSyncWithPrevious = true;
         vesetParams.bSameEngineAsLastSubmission = false;
         CODECHAL_DECODE_CHK_STATUS_RETURN(CodecHalDecodeSinglePipeVE_SetHintParams(m_veState, &vesetParams));
+    }
+
+    return eStatus;
+}
+
+MOS_STATUS CodechalDecodeAvcG12::ErrorDetectAndConceal()
+{
+    MOS_STATUS eStatus = MOS_STATUS_SUCCESS;
+
+#ifdef _DECODE_PROCESSING_SUPPORTED
+    // Skip check for sfc downsampling cases.
+    if (m_sfcState->m_sfcPipeOut  == true)
+    {
+        return eStatus;
+    }
+#endif
+
+    if ((uint32_t)(m_destSurface.dwWidth * m_destSurface.dwHeight) < (m_width * m_height))
+    {
+        // Return an error when the output size is insufficient for AVC decoding
+        CODECHAL_DECODE_ASSERTMESSAGE("Incorrect decode output allocation.")
+        return MOS_STATUS_INVALID_PARAMETER;
     }
 
     return eStatus;
@@ -284,8 +308,10 @@ MOS_STATUS CodechalDecodeAvcG12::DecodeStateLevel()
     CODECHAL_DECODE_CHK_STATUS_RETURN(m_osInterface->pfnGetCommandBuffer(m_osInterface, &cmdBuffer, 0));
 
     auto mmioRegisters = m_hwInterface->GetMfxInterface()->GetMmioRegisters(m_vdboxIndex);
-    HalOcaInterface::On1stLevelBBStart(cmdBuffer, *m_osInterface->pOsContext, m_osInterface->CurrentGpuContextHandle, *m_miInterface, *mmioRegisters);
 
+    HalOcaInterface::On1stLevelBBStart(cmdBuffer, *m_osInterface->pOsContext, m_osInterface->CurrentGpuContextHandle, *m_miInterface, *mmioRegisters);
+    HalOcaInterface::OnDispatch(cmdBuffer, *m_osInterface, *m_miInterface, *m_miInterface->GetMmioRegisters());
+    
     MHW_MI_FORCE_WAKEUP_PARAMS forceWakeupParams;
     MOS_ZeroMemory(&forceWakeupParams, sizeof(MHW_MI_FORCE_WAKEUP_PARAMS));
     forceWakeupParams.bMFXPowerWellControl = true;

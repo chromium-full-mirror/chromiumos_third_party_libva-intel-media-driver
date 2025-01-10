@@ -116,6 +116,8 @@ namespace decode{
         m_allocator = m_pipeline ->GetDecodeAllocator();
         DECODE_CHK_NULL(m_allocator);
 
+        MOS_ZeroMemory(m_refSurface, sizeof(m_refSurface));
+
         return MOS_STATUS_SUCCESS;
     }
 
@@ -1064,7 +1066,17 @@ namespace decode{
 
             if (!AV1_KEY_OR_INRA_FRAME(m_av1PicParams->m_picInfoFlags.m_fields.m_frameType))
             {
-                uint8_t refPicIndex = refFrameList[m_av1PicParams->m_refFrameIdx[i]].FrameIdx;
+                uint8_t refPicIndex = 0xFF;
+                if (m_av1PicParams->m_refFrameIdx[i] < av1TotalRefsPerFrame &&
+                    refFrameList[m_av1PicParams->m_refFrameIdx[i]].FrameIdx < CODECHAL_MAX_DPB_NUM_AV1)
+                {
+                    refPicIndex = refFrameList[m_av1PicParams->m_refFrameIdx[i]].FrameIdx;
+                }
+                else
+                {
+                    DECODE_CHK_STATUS(m_av1BasicFeature->m_refFrames.GetValidReferenceIndex(&refPicIndex));
+                }
+
                 horizontalScaleFactor = (m_refList[refPicIndex]->m_frameWidth * m_av1ScalingFactor + (curFrameWidth >> 1)) / curFrameWidth;
                 verticalScaleFactor   = (m_refList[refPicIndex]->m_frameHeight * m_av1ScalingFactor + (curFrameHeight >> 1)) / curFrameHeight;
 

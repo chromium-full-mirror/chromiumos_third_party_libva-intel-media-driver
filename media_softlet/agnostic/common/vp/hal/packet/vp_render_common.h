@@ -69,7 +69,7 @@ enum KRN_ARG_KIND
     ARG_KIND_SURFACE_2D_SCOREBOARD  = 0x2A,
     ARG_KIND_GENERAL_DEPCNT         = 0x30,
 
-    //For L0 used only
+    //For OCL used only
     ARG_KIND_INLINE                 = 0xa00
 };
 
@@ -102,14 +102,14 @@ struct KRN_ARG
     IMPLICIT_ARG_TYPE      implicitArgType;
 };
 
-//for L0 use only
+//for OCL use only
 struct KRN_BTI
 {
     uint32_t               uIndex;
     uint32_t               uBTI;
 };
 
-//for L0 use only
+//for OCL use only
 struct KRN_EXECUTE_ENV
 {
     uint32_t uBarrierCount;
@@ -134,7 +134,7 @@ using SurfaceIndex = uint32_t;
 using SamplerIndex = uint32_t;
 using KernelIndex  = uint32_t;              // index of current kernel in KERNEL_PARAMS_LIST
 
-typedef struct _SURFACE_PARAMS
+typedef struct MOS_ALIGNED(16) _SURFACE_PARAMS
 {
     SurfaceType surfType;
     bool        isOutput;
